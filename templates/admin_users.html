@@ -2,68 +2,70 @@
 {% block title %}Пользователи — NeuroScan AI{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="text-info mb-0">👥 Управление пользователями</h3>
-    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">← К пациентам</a>
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">👥 Управление пользователями</h1>
+        <div class="ns-page-sub">Роли, статусы и активность учётных записей</div>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">← К пациентам</a>
 </div>
 
 {% if users %}
-<table class="table table-dark table-hover align-middle">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Логин</th>
-            <th>ФИО</th>
-            <th>Роль</th>
-            <th>Статус</th>
-            <th>Последний вход</th>
-            <th class="text-end">Действия</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for u in users %}
-        <tr>
-            <td>{{ u.id }}</td>
-            <td><code class="text-info">{{ u.username }}</code></td>
-            <td>{{ u.full_name }}</td>
-            <td>
-                <form method="post" action="{{ url_for('admin_change_role', uid=u.id) }}"
-                      class="d-inline">
-                    <select name="role"
-                            class="form-select form-select-sm bg-dark text-light border-secondary"
-                            onchange="this.form.submit()"
-                            {% if u.id == current_user.id %}disabled{% endif %}>
-                        <option value="doctor" {% if u.role == 'doctor' %}selected{% endif %}>Врач</option>
-                        <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Админ</option>
-                    </select>
-                </form>
-            </td>
-            <td>
-                {% if u.is_active_flag %}
-                    <span class="badge bg-success">Активен</span>
-                {% else %}
-                    <span class="badge bg-danger">Отключён</span>
-                {% endif %}
-            </td>
-            <td class="small text-secondary">
-                {{ u.last_login.strftime('%d.%m.%Y %H:%M') if u.last_login else '—' }}
-            </td>
-            <td class="text-end">
-                {% if u.id != current_user.id %}
-                <form method="post" action="{{ url_for('admin_toggle_user', uid=u.id) }}"
-                      class="d-inline">
-                    <button class="btn btn-sm btn-outline-warning">
-                        {{ 'Отключить' if u.is_active_flag else 'Активировать' }}
-                    </button>
-                </form>
-                {% else %}
-                    <span class="small text-secondary">это вы</span>
-                {% endif %}
-            </td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="ns-table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Логин</th>
+                <th>ФИО</th>
+                <th>Роль</th>
+                <th>Статус</th>
+                <th>Последний вход</th>
+                <th class="text-end">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+            <tr>
+                <td class="ns-hint">{{ u.id }}</td>
+                <td><code>{{ u.username }}</code></td>
+                <td>{{ u.full_name }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_change_role', uid=u.id) }}" class="d-inline">
+                        <select name="role" class="form-select form-select-sm"
+                                onchange="this.form.submit()"
+                                {% if u.id == current_user.id %}disabled{% endif %}>
+                            <option value="doctor" {% if u.role == 'doctor' %}selected{% endif %}>Врач</option>
+                            <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Админ</option>
+                        </select>
+                    </form>
+                </td>
+                <td>
+                    {% if u.is_active_flag %}
+                        <span class="ns-badge ns-badge-ok">Активен</span>
+                    {% else %}
+                        <span class="ns-badge ns-badge-off">Отключён</span>
+                    {% endif %}
+                </td>
+                <td class="ns-hint">
+                    {{ u.last_login.strftime('%d.%m.%Y %H:%M') if u.last_login else '—' }}
+                </td>
+                <td class="text-end">
+                    {% if u.id != current_user.id %}
+                    <form method="post" action="{{ url_for('admin_toggle_user', uid=u.id) }}" class="d-inline">
+                        <button class="btn btn-sm btn-warn-soft">
+                            {{ 'Отключить' if u.is_active_flag else 'Активировать' }}
+                        </button>
+                    </form>
+                    {% else %}
+                        <span class="ns-hint">это вы</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% else %}
 <div class="alert alert-secondary">Пользователей нет.</div>
 {% endif %}
