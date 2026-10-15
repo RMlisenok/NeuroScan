@@ -114,11 +114,33 @@ code {
   margin-bottom: 1.5rem;
 }
 .ns-page-title {
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -.015em;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -.020em;
   color: var(--ns-ink);
   margin: 0 0 .15rem;
+}
+.ns-brand-logo {
+    width: 40px;
+    height: 40px;
+    margin-right: .5rem;
+    vertical-align: middle;
+}
+
+.ns-badge-ok    { background: #14532d; color: #86efac; }
+.ns-badge-danger{ background: #450a0a; color: #fca5a5; }
+.ns-badge-info  { background: #0c4a6e; color: #7dd3fc; }
+
+.ns-table-wrap table .is-active {
+    background: rgba(56, 189, 248, .08);
+}
+
+.progress {
+    background: rgba(255,255,255,.06);
+    border-radius: 4px;
+}
+.progress-bar {
+    background: var(--ns-brand, #38bdf8);
 }
 .ns-page-sub {
   font-size: .85rem;

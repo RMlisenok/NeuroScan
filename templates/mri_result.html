@@ -5,33 +5,29 @@
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="ns-page-head">
     <div>
-        <h3 class="text-info mb-1">Сессия №{{ session.id }}</h3>
-        <div class="text-secondary small">
+        <h1 class="ns-page-title">Сессия №{{ session.id }}</h1>
+        <div class="ns-page-sub">
             {{ patient.full_name }} · {{ session.created_at.strftime('%d.%m.%Y %H:%M') }}
         </div>
     </div>
-    <a href="{{ url_for('session_report', sid=session.id) }}" class="btn btn-info fw-bold">📄 PDF-отчёт</a>
+    <a href="{{ url_for('session_report', sid=session.id) }}" class="btn btn-brand">📄 PDF-отчёт</a>
 </div>
 
-{# ================== СОПОСТАВЛЕНИЕ ЖАЛОБ И РЕЗУЛЬТАТА ================== #}
+{# ============ СОПОСТАВЛЕНИЕ ЖАЛОБ И РЕЗУЛЬТАТА ============ #}
 {% if symptom_result and symptom_result.has_text %}
-<div class="card bg-black border-info mb-4">
-    <div class="card-body">
-        <h5 class="text-info mb-3">🧠 Сопоставление жалоб и результатов анализа</h5>
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">🧠 Сопоставление жалоб и результатов анализа</div>
 
-        {% if symptom_result.warning %}
-            <div class="alert alert-warning mb-3">
-                ⚠️ {{ symptom_result.warning }}
-            </div>
-        {% else %}
-            <div class="alert alert-success mb-3">
-                ✅ Жалобы пациента согласуются с результатом модели.
-            </div>
-        {% endif %}
+    {% if symptom_result.warning %}
+        <div class="alert alert-warning mb-3">⚠️ {{ symptom_result.warning }}</div>
+    {% else %}
+        <div class="alert alert-success mb-3">✅ Жалобы пациента согласуются с результатом модели.</div>
+    {% endif %}
 
-        <table class="table table-dark table-sm align-middle mb-0">
+    <div class="ns-table-wrap mb-0">
+        <table class="table">
             <thead>
                 <tr>
                     <th>Класс</th>
@@ -40,139 +36,133 @@
             </thead>
             <tbody>
                 {% for cls, score in symptom_result.similarity.items() %}
-                <tr {% if cls == symptom_result.best_match %}class="table-active fw-bold"{% endif %}>
+                <tr {% if cls == symptom_result.best_match %}class="is-active"{% endif %}>
                     <td>
                         {{ class_info[cls].name_ru if class_info and cls in class_info else cls }}
                         {% if cls == symptom_result.best_match %}
-                            <span class="badge bg-info text-dark ms-1">наибольшее</span>
+                            <span class="ns-badge ns-badge-info ms-1">наибольшее</span>
                         {% endif %}
                     </td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
                             <div class="progress flex-grow-1" style="height:8px;">
-                                <div class="progress-bar bg-info" style="width: {{ score * 100 }}%"></div>
+                                <div class="progress-bar" style="width: {{ score * 100 }}%"></div>
                             </div>
-                            <span class="small" style="min-width: 50px;">{{ "%.1f"|format(score * 100) }}%</span>
+                            <span class="ns-hint" style="min-width: 50px;">{{ "%.1f"|format(score * 100) }}%</span>
                         </div>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-
-        <p class="small text-secondary mt-3 mb-0">
-            Сходство рассчитано методом TF-IDF по клиническим описаниям классов.
-            Результат носит вспомогательный характер и не является диагнозом.
-        </p>
     </div>
+
+    <p class="ns-hint mt-3 mb-0">
+        Сходство рассчитано методом TF-IDF по клиническим описаниям классов.
+        Результат носит вспомогательный характер и не является диагнозом.
+    </p>
 </div>
 {% elif symptom_result %}
-<div class="alert alert-secondary">
-    {{ symptom_result.warning }}
-</div>
+<div class="alert alert-secondary">{{ symptom_result.warning }}</div>
 {% endif %}
 
-{# ================== СНИМКИ ================== #}
+{# ============ СНИМКИ ============ #}
 {% for img in images %}
-<div class="card bg-black border-info mb-4">
-    <div class="card-body">
-        <div class="d-flex justify-content-between mb-2">
-            <b class="text-info">Снимок: {{ img.filename }}</b>
-            {% if img.qc_ok %}
-                <span class="badge bg-success">QC пройден</span>
-            {% else %}
-                <span class="badge bg-danger">QC отклонён</span>
-            {% endif %}
-        </div>
-
-        {% if not img.qc_ok %}
-            <div class="alert alert-danger">
-                <b>Снимок не прошёл контроль качества.</b> Загрузите другое изображение.
-                <ul class="mb-0 mt-2">
-                    {% for r in img.qc_reasons|from_json %}
-                        <li>{{ r }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            <pre class="text-secondary small">{{ img.qc_metrics }}</pre>
+<div class="ns-card p-4 mb-4">
+    <div class="d-flex justify-content-between mb-2">
+        <b>Снимок: {{ img.filename }}</b>
+        {% if img.qc_ok %}
+            <span class="ns-badge ns-badge-ok">QC пройден</span>
         {% else %}
-            <div class="row g-3">
-                <div class="col-md-4 text-center">
-                    <img src="/{{ img.original_path }}" class="img-fluid rounded border border-secondary" alt="Исходное">
-                    <div class="small text-secondary mt-1">Исходное</div>
-                </div>
-                <div class="col-md-4 text-center">
-                    <img src="/{{ img.overlay_path }}" class="img-fluid rounded border border-info" alt="Grad-CAM">
-                    <div class="small text-info mt-1">Grad-CAM overlay</div>
-                </div>
-                <div class="col-md-4">
-                    <h5 class="text-warning mb-2">
-                        {{ img.predicted_class|ru_class }}
-                    </h5>
-                    <p class="mb-1">Уверенность: <b class="text-info">{{ "%.1f"|format(img.confidence*100) }}%</b></p>
-                    {% if img.bbox %}
-                        <p class="small text-secondary mb-1">BBox: {{ img.bbox }}</p>
-                        <p class="small text-secondary mb-2">Площадь: {{ img.area_pct }}%</p>
-                    {% endif %}
-                    {% if img.confidence < 0.6 %}
-                        <div class="alert alert-warning py-1 small">Низкая уверенность — рекомендуется консилиум.</div>
-                    {% endif %}
-
-                    <h6 class="text-info mt-3">Вероятности:</h6>
-                    {% for name, p in (img.probabilities|from_json).items() %}
-                        <div class="small d-flex justify-content-between">
-                            <span>{{ name }}</span><span>{{ "%.1f"|format(p*100) }}%</span>
-                        </div>
-                        <div class="progress mb-2" style="height:5px;">
-                            <div class="progress-bar bg-info" style="width: {{ p*100 }}%"></div>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <hr class="border-secondary">
-            <h6 class="text-info">Редактор маски (отправка на дообучение)</h6>
-            <div class="row g-3">
-                <div class="col-md-8">
-                    <canvas id="canvas-{{ img.id }}" class="mask-editor w-100 border border-secondary rounded"
-                            data-image="/{{ img.original_path }}"
-                            data-mask="/{{ img.edited_mask_path }}"></canvas>
-                </div>
-                <div class="col-md-4">
-                    <p class="small text-secondary">
-                        Рисуйте кистью поверх области опухоли. Сохранённая маска попадёт
-                        в очередь на дообучение модели (active learning).
-                    </p>
-                    <div class="d-flex flex-wrap gap-2 mb-2">
-                        <button type="button" class="btn btn-sm btn-outline-info"
-                                onclick="setBrush({{ img.id }}, 5)">Кисть 5</button>
-                        <button type="button" class="btn btn-sm btn-outline-info"
-                                onclick="setBrush({{ img.id }}, 10)">Кисть 10</button>
-                        <button type="button" class="btn btn-sm btn-outline-info"
-                                onclick="setBrush({{ img.id }}, 20)">Кисть 20</button>
-                        <button type="button" class="btn btn-sm btn-outline-warning"
-                                onclick="setEraser({{ img.id }})">Ластик</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary"
-                                onclick="clearCanvas({{ img.id }})">Очистить</button>
-                    </div>
-                    <div class="form-check form-switch mb-2">
-                        <input class="form-check-input" type="checkbox" id="show-mask-{{ img.id }}"
-                               onchange="toggleMaskOverlay({{ img.id }}, this.checked)">
-                        <label class="form-check-label small text-secondary" for="show-mask-{{ img.id }}">
-                            Показать сохранённую маску
-                        </label>
-                    </div>
-                    <button type="button" class="btn btn-info w-100 fw-bold"
-                            onclick="saveMask({{ img.id }})">
-                        💾 Сохранить маску
-                    </button>
-                    <div id="status-{{ img.id }}" class="small mt-2"></div>
-                </div>
-            </div>
+            <span class="ns-badge ns-badge-danger">QC отклонён</span>
         {% endif %}
     </div>
+
+    {% if not img.qc_ok %}
+        <div class="alert alert-danger">
+            <b>Снимок не прошёл контроль качества.</b> Загрузите другое изображение.
+            <ul class="mb-0 mt-2">
+                {% for r in img.qc_reasons|from_json %}
+                    <li>{{ r }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <pre class="ns-hint small">{{ img.qc_metrics }}</pre>
+    {% else %}
+        <div class="row g-3">
+            <div class="col-md-4 text-center">
+                <img src="/{{ img.original_path }}" class="img-fluid rounded" alt="Исходное">
+                <div class="ns-hint mt-1">Исходное</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <img src="/{{ img.overlay_path }}" class="img-fluid rounded" alt="Grad-CAM">
+                <div class="ns-hint mt-1">Grad-CAM overlay</div>
+            </div>
+            <div class="col-md-4">
+                <h5 class="mb-2">{{ img.predicted_class|ru_class }}</h5>
+                <p class="mb-1">Уверенность: <b>{{ "%.1f"|format(img.confidence*100) }}%</b></p>
+                {% if img.bbox %}
+                    <p class="ns-hint mb-1">BBox: {{ img.bbox }}</p>
+                    <p class="ns-hint mb-2">Площадь: {{ img.area_pct }}%</p>
+                {% endif %}
+                {% if img.confidence < 0.6 %}
+                    <div class="alert alert-warning py-1 small">Низкая уверенность — рекомендуется консилиум.</div>
+                {% endif %}
+
+                <h6 class="mt-3">Вероятности:</h6>
+                {% for name, p in (img.probabilities|from_json).items() %}
+                    <div class="small d-flex justify-content-between">
+                        <span>{{ name }}</span><span>{{ "%.1f"|format(p*100) }}%</span>
+                    </div>
+                    <div class="progress mb-2" style="height:5px;">
+                        <div class="progress-bar" style="width: {{ p*100 }}%"></div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <hr>
+        <h6>Редактор маски (отправка на дообучение)</h6>
+        <div class="row g-3">
+            <div class="col-md-8">
+                <canvas id="canvas-{{ img.id }}" class="mask-editor w-100"
+                        data-image="/{{ img.original_path }}"
+                        data-mask="/{{ img.edited_mask_path }}"></canvas>
+            </div>
+            <div class="col-md-4">
+                <p class="ns-hint">
+                    Рисуйте кистью поверх области опухоли. Сохранённая маска попадёт
+                    в очередь на дообучение модели (active learning).
+                </p>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <button type="button" class="btn btn-sm btn-soft"
+                            onclick="setBrush({{ img.id }}, 5)">Кисть 5</button>
+                    <button type="button" class="btn btn-sm btn-soft"
+                            onclick="setBrush({{ img.id }}, 10)">Кисть 10</button>
+                    <button type="button" class="btn btn-sm btn-soft"
+                            onclick="setBrush({{ img.id }}, 20)">Кисть 20</button>
+                    <button type="button" class="btn btn-sm btn-soft"
+                            onclick="setEraser({{ img.id }})">Ластик</button>
+                    <button type="button" class="btn btn-sm btn-soft"
+                            onclick="clearCanvas({{ img.id }})">Очистить</button>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="show-mask-{{ img.id }}"
+                           onchange="toggleMaskOverlay({{ img.id }}, this.checked)">
+                    <label class="form-check-label ns-hint" for="show-mask-{{ img.id }}">
+                        Показать сохранённую маску
+                    </label>
+                </div>
+                <button type="button" class="btn btn-brand w-100"
+                        onclick="saveMask({{ img.id }})">
+                    💾 Сохранить маску
+                </button>
+                <div id="status-{{ img.id }}" class="ns-hint mt-2"></div>
+            </div>
+        </div>
+    {% endif %}
 </div>
 {% endfor %}
 
-<a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-outline-secondary">← К карте пациента</a>
+<a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">← К карте пациента</a>
 {% endblock %}
