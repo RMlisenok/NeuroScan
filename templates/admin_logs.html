@@ -2,40 +2,45 @@
 {% block title %}Журнал — NeuroScan AI{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="text-info mb-0">📋 Журнал действий</h3>
-    <a href="{{ url_for('admin_users') }}" class="btn btn-outline-secondary">← К пользователям</a>
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">📋 Журнал действий</h1>
+        <div class="ns-page-sub">История операций пользователей системы</div>
+    </div>
+    <a href="{{ url_for('admin_users') }}" class="btn btn-ghost">← К пользователям</a>
 </div>
 
 {% if logs %}
-<table class="table table-dark table-sm align-middle">
-    <thead>
-        <tr>
-            <th>Время</th>
-            <th>Пользователь</th>
-            <th>Действие</th>
-            <th>Объект</th>
-            <th>Детали</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for log in logs %}
-        <tr>
-            <td class="small text-secondary">{{ log.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</td>
-            <td class="small">
-                {% if log.user %}
-                    {{ log.user.username }}
-                {% else %}
-                    <span class="text-secondary">—</span>
-                {% endif %}
-            </td>
-            <td><code class="text-info">{{ log.action }}</code></td>
-            <td class="small">{{ log.entity or '—' }}{% if log.entity_id %} #{{ log.entity_id }}{% endif %}</td>
-            <td class="small text-secondary">{{ log.details or '' }}</td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="ns-table-wrap mb-3">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Время</th>
+                <th>Пользователь</th>
+                <th>Действие</th>
+                <th>Объект</th>
+                <th>Детали</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for log in logs %}
+            <tr>
+                <td class="ns-hint">{{ log.created_at.strftime('%d.%m.%Y %H:%M:%S') }}</td>
+                <td>
+                    {% if log.user %}
+                        {{ log.user.username }}
+                    {% else %}
+                        <span class="ns-hint">—</span>
+                    {% endif %}
+                </td>
+                <td><code>{{ log.action }}</code></td>
+                <td>{{ log.entity or '—' }}{% if log.entity_id %} #{{ log.entity_id }}{% endif %}</td>
+                <td class="ns-hint">{{ log.details or '' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
 
 {% if pagination.pages > 1 %}
 <nav>
@@ -43,8 +48,7 @@
         {% for p in pagination.iter_pages() %}
             {% if p %}
                 <li class="page-item {% if p == pagination.page %}active{% endif %}">
-                    <a class="page-link bg-dark text-light border-secondary"
-                       href="{{ url_for('admin_logs', page=p) }}">{{ p }}</a>
+                    <a class="page-link" href="{{ url_for('admin_logs', page=p) }}">{{ p }}</a>
                 </li>
             {% else %}
                 <li class="page-item disabled"><span class="page-link">…</span></li>
