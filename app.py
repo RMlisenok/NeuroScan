@@ -3,11 +3,14 @@ import io
 import json
 import uuid
 import datetime
+from pathlib import Path
+
 import numpy as np
 import cv2
 import torch
 from functools import wraps
 
+from dotenv import load_dotenv
 from flask import (Flask, render_template, request, redirect, url_for,
                    flash, send_file, jsonify, abort, session)
 from flask_login import (LoginManager, login_user, logout_user,
@@ -17,11 +20,18 @@ from werkzeug.utils import secure_filename
 
 from config import Config
 from models_db import db, User, Patient, MRISession, MRIImage, AuditLog
-from qc import check_image
 from ml import (build_model, GradCAM, prepare_input, overlay_cam,
                 largest_bbox, bbox_area_pct, CLASS_NAMES_RU)
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
-# ---------- Инициализация ----------
+FONT_DIR = "/usr/share/fonts/truetype/dejavu"
+pdfmetrics.registerFont(TTFont("DejaVu", f"{FONT_DIR}/DejaVuSans.ttf"))
+pdfmetrics.registerFont(TTFont("DejaVu-Bold", f"{FONT_DIR}/DejaVuSans-Bold.ttf"))
+pdfmetrics.registerFont(TTFont("DejaVu-Oblique", f"{FONT_DIR}/DejaVuSans-Oblique.ttf"))
+
+
+load_dotenv(Path(__file__).resolve().parent / '.env')
 app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
@@ -35,7 +45,6 @@ os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 os.makedirs("instance", exist_ok=True)
 os.makedirs("models", exist_ok=True)
 
-# ---------- Модель (ленивая загрузка) ----------
 model = None
 gradcam = None
 CLASSES = []
@@ -88,7 +97,6 @@ def allowed_file(name):
     return "." in name and name.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXT"]
 
 
-# ---------- CLI: создать админа ----------
 @app.cli.command("init-db")
 def init_db():
     db.create_all()
@@ -111,217 +119,32 @@ def create_user_cli():
     db.session.commit()
     print(f"Пользователь {username} создан.")
 
+@app.template_filter("ru_class")
+def ru_class_filter(class_name):
+    if not class_name:
+        return "—"
+    return CLASS_NAMES_RU.get(class_name, class_name)
 
-# ---------- Auth ----------
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
-            login_user(user)
-            log_action("login", "user", user.id)
-            return redirect(url_for("dashboard"))
-        flash("Неверный логин или ключ доступа")
-    return render_template("login.html")
+@app.template_filter("ru_class")
+def ru_class_filter(class_name):
+    """glioma -> Глиома"""
+    if not class_name:
+        return "—"
+    return CLASS_NAMES_RU.get(class_name, class_name)
 
 
-@app.route("/logout")
-@login_required
-def logout():
-    log_action("logout", "user", current_user.id)
-    logout_user()
-    return redirect(url_for("login"))
+@app.template_filter("from_json")
+def from_json_filter(value):
+    """JSON-строка -> dict/list. Безопасно возвращает пустой объект при ошибке."""
+    if not value:
+        return {}
+    try:
+        return json.loads(value)
+    except (ValueError, TypeError):
+        return {}
 
 
-# ---------- Dashboard ----------
-@app.route("/")
-@login_required
-def dashboard():
-    q = request.args.get("q", "").strip()
-    query = Patient.query.filter_by(doctor_id=current_user.id)
-    if q:
-        query = query.filter(Patient.full_name.ilike(f"%{q}%"))
-    patients = query.order_by(Patient.updated_at.desc()).all()
-    return render_template("dashboard.html", patients=patients, q=q)
 
-
-# ---------- Пациенты ----------
-@app.route("/patient/new", methods=["GET", "POST"])
-@login_required
-def patient_new():
-    if request.method == "POST":
-        p = Patient(
-            doctor_id=current_user.id,
-            full_name=request.form["full_name"].strip(),
-            birth_date=_parse_date(request.form.get("birth_date")),
-            gender=request.form.get("gender"),
-            phone=request.form.get("phone"),
-            email=request.form.get("email"),
-            address=request.form.get("address"),
-            insurance_number=request.form.get("insurance_number"),
-            anamnesis=request.form.get("anamnesis"),
-            complaints=request.form.get("complaints"),
-            notes=request.form.get("notes"),
-        )
-        db.session.add(p)
-        db.session.commit()
-        log_action("patient_create", "patient", p.id)
-        flash("Пациент добавлен")
-        return redirect(url_for("patient_card", pid=p.id))
-    return render_template("patient_new.html")
-
-
-@app.route("/patient/<int:pid>")
-@login_required
-def patient_card(pid):
-    p = _get_patient_or_404(pid)
-    sessions = MRISession.query.filter_by(patient_id=p.id) \
-                              .order_by(MRISession.created_at.desc()).all()
-    return render_template("patient_card.html", patient=p, sessions=sessions)
-
-
-@app.route("/patient/<int:pid>/edit", methods=["POST"])
-@login_required
-def patient_edit(pid):
-    p = _get_patient_or_404(pid)
-    p.full_name = request.form.get("full_name", p.full_name)
-    p.birth_date = _parse_date(request.form.get("birth_date"))
-    p.gender = request.form.get("gender")
-    p.phone = request.form.get("phone")
-    p.email = request.form.get("email")
-    p.address = request.form.get("address")
-    p.insurance_number = request.form.get("insurance_number")
-    p.anamnesis = request.form.get("anamnesis")
-    p.complaints = request.form.get("complaints")
-    p.notes = request.form.get("notes")
-    db.session.commit()
-    log_action("patient_update", "patient", p.id)
-    flash("Данные обновлены")
-    return redirect(url_for("patient_card", pid=p.id))
-
-
-# ---------- МРТ сессии ----------
-@app.route("/patient/<int:pid>/mri/new", methods=["GET"])
-@login_required
-def mri_upload_page(pid):
-    p = _get_patient_or_404(pid)
-    return render_template("mri_upload.html", patient=p,
-                           max_images=app.config["MAX_IMAGES_PER_SESSION"])
-
-
-@app.route("/patient/<int:pid>/mri/new", methods=["POST"])
-@login_required
-def mri_upload(pid):
-    p = _get_patient_or_404(pid)
-    files = request.files.getlist("files")
-    files = [f for f in files if f and f.filename]
-
-    if not files:
-        flash("Не выбрано ни одного файла")
-        return redirect(url_for("mri_upload_page", pid=pid))
-    if len(files) > app.config["MAX_IMAGES_PER_SESSION"]:
-        flash(f"Максимум {app.config['MAX_IMAGES_PER_SESSION']} снимков за сессию")
-        return redirect(url_for("mri_upload_page", pid=pid))
-
-    if not ensure_model():
-        flash("Модель не загружена. Запустите train.py")
-        return redirect(url_for("mri_upload_page", pid=pid))
-
-    s = MRISession(patient_id=p.id)
-    db.session.add(s)
-    db.session.commit()
-
-    folder = os.path.join(app.config["UPLOAD_FOLDER"], f"p{p.id}", f"s{s.id}")
-    os.makedirs(folder, exist_ok=True)
-
-    for f in files:
-        if not allowed_file(f.filename):
-            continue
-        img_bytes = np.frombuffer(f.read(), np.uint8)
-        img_bgr = cv2.imdecode(img_bytes, cv2.IMREAD_COLOR)
-        if img_bgr is None:
-            continue
-
-        uid = uuid.uuid4().hex[:10]
-        orig_path = os.path.join(folder, f"{uid}_orig.png")
-        cv2.imwrite(orig_path, img_bgr)
-
-        qc = check_image(img_bgr)
-
-        rec = MRIImage(
-            session_id=s.id,
-            filename=secure_filename(f.filename),
-            original_path=_rel(orig_path),
-            qc_ok=qc.ok,
-            qc_reasons=json.dumps(qc.reasons, ensure_ascii=False),
-            qc_metrics=json.dumps(qc.metrics, ensure_ascii=False),
-        )
-
-        if qc.ok:
-            _run_inference(img_bgr, folder, uid, rec)
-
-        db.session.add(rec)
-
-    db.session.commit()
-    log_action("mri_upload", "session", s.id, f"{len(files)} files")
-    return redirect(url_for("mri_result", sid=s.id))
-
-
-@app.route("/session/<int:sid>")
-@login_required
-def mri_result(sid):
-    s = _get_session_or_404(sid)
-    images = MRIImage.query.filter_by(session_id=s.id).all()
-    return render_template("mri_result.html", session=s, patient=s.patient, images=images)
-
-
-@app.route("/image/<int:iid>/mask", methods=["POST"])
-@login_required
-def save_mask(iid):
-    """Сохраняет отредактированную маску (PNG base64) и отправляет на дообучение."""
-    img = _get_image_or_404(iid)
-    data = request.get_json() or {}
-    mask_b64 = data.get("mask")
-    if not mask_b64:
-        return jsonify({"ok": False, "error": "no mask"}), 400
-
-    import base64
-    raw = base64.b64decode(mask_b64.split(",")[-1])
-    mask = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_GRAYSCALE)
-    if mask is None:
-        return jsonify({"ok": False, "error": "bad mask"}), 400
-
-    folder = os.path.dirname(_abs(img.original_path))
-    mask_path = os.path.join(folder, f"mask_{img.id}.png")
-    cv2.imwrite(mask_path, mask)
-    img.edited_mask_path = _rel(mask_path)
-    img.session.status = "edited"
-    db.session.commit()
-
-    # TODO: положить в очередь на дообучение (active learning)
-    log_action("mask_edit", "image", img.id)
-    return jsonify({"ok": True})
-
-
-@app.route("/session/<int:sid>/report")
-@login_required
-def session_report(sid):
-    s = _get_session_or_404(sid)
-    return _build_pdf(s)
-
-
-@app.route("/patient/<int:pid>/history")
-@login_required
-def patient_history(pid):
-    p = _get_patient_or_404(pid)
-    sessions = MRISession.query.filter_by(patient_id=p.id) \
-                              .order_by(MRISession.created_at.desc()).all()
-    return render_template("history.html", patient=p, sessions=sessions)
-
-
-# ---------- helpers ----------
 def _parse_date(v):
     if not v:
         return None
@@ -390,59 +213,169 @@ def _run_inference(img_bgr, folder, uid, rec):
     rec.cam_threshold = 0.5
 
 
+def _wrap_text(text, width):
+    words = text.split()
+    lines = []
+    cur = ""
+    for w in words:
+        if len(cur) + len(w) + 1 <= width:
+            cur = (cur + " " + w).strip()
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines or [""]
+
+
 def _build_pdf(s):
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     from reportlab.lib.utils import ImageReader
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from datetime import datetime as _dt
+    FONT_DIR = "/usr/share/fonts/truetype/dejavu"
+    pdfmetrics.registerFont(TTFont("DejaVu", f"{FONT_DIR}/DejaVuSans.ttf"))
+    pdfmetrics.registerFont(TTFont("DejaVu-Bold", f"{FONT_DIR}/DejaVuSans-Bold.ttf"))
+    pdfmetrics.registerFont(TTFont("DejaVu-Oblique", f"{FONT_DIR}/DejaVuSans-Oblique.ttf"))
 
     buf = io.BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     W, H = A4
 
-    c.setFont("Helvetica-Bold", 16)
+    c.setFont("DejaVu-Bold", 16)
     c.drawString(40, H - 50, "NeuroScan AI — отчёт по МРТ-исследованию")
-    c.setFont("Helvetica", 10)
-    c.drawString(40, H - 70, f"Пациент: {s.patient.full_name}")
-    c.drawString(40, H - 85, f"Дата рождения: {s.patient.birth_date or '-'}")
-    c.drawString(40, H - 100, f"Сессия №{s.id} от {s.created_at:%d.%m.%Y %H:%M}")
-    c.drawString(40, H - 115, f"Врач: {current_user.full_name}")
 
-    y = H - 150
-    for img in s.images:
+    c.setFont("DejaVu", 10)
+    y = H - 80
+
+    doctor = s.patient.doctor
+    doctor_name = doctor.full_name if doctor else "—"
+    department = getattr(doctor, "department", None) or "—"
+
+    age = s.patient.age if hasattr(s.patient, "age") else "—"
+
+    gender_raw = s.patient.gender or "—"
+    gender = {"М": "Мужской", "Ж": "Женский", "M": "Мужской", "F": "Женский"}.get(gender_raw, gender_raw)
+
+    exam_time = s.created_at.strftime("%d.%m.%Y %H:%M") if s.created_at else "—"
+    first_img = s.images.first() if hasattr(s.images, "first") else (list(s.images)[0] if s.images else None)
+
+    diagnosis = "—"
+    if first_img and first_img.predicted_class:
+        from ml import CLASS_NAMES_RU
+        diagnosis = CLASS_NAMES_RU.get(first_img.predicted_class, first_img.predicted_class)
+    lines = [
+        ("ФИО пациента:", s.patient.full_name or "—"),
+        ("Возраст:", f"{age} лет" if age != "—" else "—"),
+        ("Пол:", gender),
+        ("Лечащий врач:", doctor_name),
+        ("Отделение:", department),
+        ("Тип обследования:", "МРТ головного мозга"),
+        ("Время обследования:", exam_time),
+        ("Диагноз (предварительный):", diagnosis),
+    ]
+
+    c.setFont("DejaVu", 10)
+    for label, value in lines:
+        c.setFont("DejaVu-Bold", 10)
+        c.drawString(40, y, label)
+        c.setFont("DejaVu", 10)
+        c.drawString(200, y, str(value)[:80])
+        y -= 16
+    y -= 6
+    c.setFont("DejaVu-Bold", 11)
+    c.drawString(40, y, "Анамнез:")
+    y -= 14
+    c.setFont("DejaVu", 10)
+    anamnesis = (s.patient.anamnesis or "Не указан").strip()
+    for line in _wrap_text(anamnesis, 90):
         if y < 260:
             c.showPage()
-            y = H - 80
+            y = H - 60
+            c.setFont("DejaVu", 10)
+        c.drawString(40, y, line)
+        y -= 13
 
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(40, y, f"Снимок: {img.filename}")
-        y -= 15
+    y -= 10
+    c.setFont("DejaVu-Bold", 12)
+    c.drawString(40, y, "Результаты анализа снимков:")
+    y -= 20
 
-        c.setFont("Helvetica", 10)
+    for i, img in enumerate(s.images, 1):
+        if y < 300:
+            c.showPage()
+            y = H - 60
+
+        c.setFont("DejaVu-Bold", 10)
+        c.drawString(40, y, f"Снимок {i}: {img.filename}")
+        y -= 14
+
+        c.setFont("DejaVu", 9)
         if not img.qc_ok:
-            reasons = json.loads(img.qc_reasons or "[]")
-            c.drawString(40, y, "QC: отклонён. " + "; ".join(reasons)[:120])
-            y -= 15
+            try:
+                reasons = json.loads(img.qc_reasons or "[]")
+            except Exception:
+                reasons = []
+            c.drawString(40, y, "QC: отклонён. " + "; ".join(reasons)[:110])
+            y -= 14
             continue
 
-        c.drawString(40, y, f"Диагноз модели: {CLASS_NAMES_RU.get(img.predicted_class, img.predicted_class)}")
-        c.drawString(300, y, f"Уверенность: {img.confidence*100:.1f}%")
-        y -= 15
+        from ml import CLASS_NAMES_RU
+        cls_ru = CLASS_NAMES_RU.get(img.predicted_class, img.predicted_class or "—")
+        c.drawString(40, y, f"Диагноз модели: {cls_ru}")
+        if img.confidence is not None:
+            c.drawString(320, y, f"Уверенность: {img.confidence*100:.1f}%")
+        y -= 14
+
         if img.bbox:
-            c.drawString(40, y, f"BBox: {img.bbox} | Площадь: {img.area_pct}%")
-            y -= 15
+            c.drawString(40, y, f"Область интереса (bbox): {img.bbox} | Площадь: {img.area_pct}%")
+            y -= 14
 
         try:
-            c.drawImage(ImageReader(_abs(img.original_path)), 40, y - 170,
-                        width=200, height=170, preserveAspectRatio=True)
+            orig = _abs(img.original_path)
+            c.drawImage(ImageReader(orig), 40, y - 160,
+                        width=220, height=160, preserveAspectRatio=True)
+            c.setFont("DejaVu", 8)
+            c.drawString(40, y - 172, "Оригинал")
             if img.overlay_path:
-                c.drawImage(ImageReader(_abs(img.overlay_path)), 260, y - 170,
-                            width=200, height=170, preserveAspectRatio=True)
-            y -= 185
+                ov = _abs(img.overlay_path)
+                c.drawImage(ImageReader(ov), 290, y - 160,
+                            width=220, height=160, preserveAspectRatio=True)
+                c.drawString(290, y - 172, "Grad-CAM (область внимания модели)")
+            y -= 190
         except Exception:
             y -= 20
 
-    c.setFont("Helvetica-Oblique", 9)
-    c.drawString(40, 40, "Результат носит вспомогательный характер и не является медицинским заключением.")
+    if y < 200:
+        c.showPage()
+        y = H - 60
+
+    y -= 10
+    c.setFont("DejaVu", 10)
+    now = _dt.now().strftime("%d.%m.%Y %H:%M")
+
+    c.drawString(40, y, f"Выполнил (рентгенолог): ______________________  "
+                        f"Время сбора данных: {now}")
+    y -= 20
+    c.drawString(40, y, f"Проверил (лечащий врач): {doctor_name}  "
+                        f"Время проверки: ______________")
+    y -= 24
+
+    c.setFont("DejaVu", 10)
+    c.drawString(40, y, "Подпись врача: ______________________")
+    y -= 24
+
+    c.setFont("DejaVu-Oblique", 9)
+    note = ("Примечание: результат автоматического анализа носит вспомогательный характер "
+            "и не является медицинским заключением. Окончательный диагноз устанавливает "
+            "лечащий врач на основании клинической картины и дополнительных исследований.")
+    for line in _wrap_text(note, 100):
+        c.drawString(40, y, line)
+        y -= 12
+
     c.showPage()
     c.save()
     buf.seek(0)
@@ -451,10 +384,8 @@ def _build_pdf(s):
                      mimetype="application/pdf")
 
 
-# ---------- bootstrap ----------
 with app.app_context():
     db.create_all()
-    # автосоздание админа, если БД пустая
     if not User.query.first():
         admin = User(
             username="admin",
@@ -466,6 +397,7 @@ with app.app_context():
         db.session.commit()
         print("[INIT] Создан admin/admin123 — смените пароль!")
 
+import routes
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

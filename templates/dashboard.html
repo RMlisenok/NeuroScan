@@ -20,7 +20,7 @@
             <div class="small text-secondary">{{ p.birth_date or '—' }} · {{ p.gender or '—' }}</div>
         </div>
         <div class="small text-secondary align-self-center">
-            Сессий: {{ p.sessions|length }}
+            Сессий: {{ p.sessions.count() }}
         </div>
     </a>
     {% endfor %}

@@ -14,7 +14,18 @@
         <a class="navbar-brand fw-bold text-info" href="{{ url_for('dashboard') }}">🧠 NeuroScan AI</a>
         {% if current_user.is_authenticated %}
         <div class="ms-auto d-flex align-items-center gap-3">
-            <span class="small text-secondary">{{ current_user.full_name }}</span>
+            {% if current_user.is_admin %}
+                <a href="{{ url_for('admin_users') }}" class="btn btn-sm btn-outline-info">
+                    👥 Пользователи
+                </a>
+                <a href="{{ url_for('admin_logs') }}" class="btn btn-sm btn-outline-info">
+                    📋 Журнал
+                </a>
+            {% endif %}
+            <span class="small text-secondary">
+                {{ current_user.full_name }}
+                <span class="badge bg-info text-dark">{{ current_user.role }}</span>
+            </span>
             <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-secondary">Выйти</a>
         </div>
         {% endif %}

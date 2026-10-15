@@ -1,6 +1,5 @@
 """
 NeuroScan AI — модели базы данных.
-
 Таблицы:
   users         — врачи и админы
   patients      — пациенты
@@ -17,9 +16,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 db = SQLAlchemy()
 
 
-# ============================================================
 # USERS
-# ============================================================
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
@@ -47,22 +44,33 @@ class User(UserMixin, db.Model):
     def is_active(self):  # flask-login
         return self.is_active_flag
 
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+
+    @property
+    def is_doctor(self) -> bool:
+        return self.role == "doctor"
+
+    def has_role(self, *roles) -> bool:
+        return self.role in roles
+
     def to_dict(self):
         return {
             "id": self.id,
             "username": self.username,
             "full_name": self.full_name,
             "role": self.role,
+            "is_admin": self.is_admin,
             "created_at": self.created_at.isoformat(),
+            "last_login": self.last_login.isoformat() if self.last_login else None,
         }
 
     def __repr__(self):
         return f"<User {self.username} ({self.role})>"
 
 
-# ============================================================
 # PATIENTS
-# ============================================================
 class Patient(db.Model):
     __tablename__ = "patients"
 
@@ -121,9 +129,7 @@ class Patient(db.Model):
         return f"<Patient {self.id} {self.full_name}>"
 
 
-# ============================================================
 # MRI SESSIONS
-# ============================================================
 class MRISession(db.Model):
     __tablename__ = "mri_sessions"
 
@@ -143,9 +149,8 @@ class MRISession(db.Model):
                            onupdate=datetime.utcnow, nullable=False)
 
     images = db.relationship(
-        "MRIImage", backref="session", lazy="dynamic",
-        cascade="all, delete-orphan",
-        order_by="MRIImage.id"
+        "MRIImage", back_populates="session", lazy="dynamic",
+        cascade="all, delete-orphan", order_by="MRIImage.id"
     )
 
     @property
@@ -171,17 +176,14 @@ class MRISession(db.Model):
         return f"<MRISession {self.id} patient={self.patient_id} status={self.status}>"
 
 
-# ============================================================
 # MRI IMAGES
-# ============================================================
 class MRIImage(db.Model):
-    __tablename__ = "mri_images"
+    __tablename__ = 'mri_images'
 
     id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.Integer,
-                           db.ForeignKey("mri_sessions.id", ondelete="CASCADE"),
-                           nullable=False, index=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('mri_sessions.id'), nullable=False)
 
+    session = db.relationship('MRISession', back_populates='images')
     # Файлы
     filename = db.Column(db.String(256), nullable=False)          # оригинальное имя
     original_path = db.Column(db.String(512), nullable=False)     # относительный путь
@@ -223,9 +225,7 @@ class MRIImage(db.Model):
         return f"<MRIImage {self.id} {self.filename} qc={self.qc_ok}>"
 
 
-# ============================================================
 # AUDIT LOG
-# ============================================================
 class AuditLog(db.Model):
     __tablename__ = "audit_log"
 

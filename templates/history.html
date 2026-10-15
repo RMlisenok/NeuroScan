@@ -9,7 +9,7 @@
     <tr>
         <td>{{ s.id }}</td>
         <td>{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-        <td>{{ s.images|length }}</td>
+        <td>{{ s.images.count() }}</td>
         <td><span class="badge bg-info text-dark">{{ s.status }}</span></td>
         <td class="text-end">
             <a href="{{ url_for('mri_result', sid=s.id) }}" class="btn btn-sm btn-outline-info">Открыть</a>

@@ -14,7 +14,6 @@ from sklearn.metrics import (classification_report, confusion_matrix,
                              f1_score, accuracy_score)
 from sklearn.model_selection import train_test_split
 
-from ml import build_model, CLASS_NAMES_RU
 
 
 # ---------- Аргументы ----------
@@ -47,20 +46,36 @@ IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
+# def build_transforms():
+#     train_tf = transforms.Compose([
+#         transforms.Resize((256, 256)),
+#         transforms.RandomResizedCrop(224, scale=(0.85, 1.0)),
+#         transforms.RandomHorizontalFlip(p=0.5),
+#         transforms.RandomRotation(degrees=12),
+#         transforms.ColorJitter(brightness=0.2, contrast=0.2),
+#         transforms.ToTensor(),
+#         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+#         transforms.RandomErasing(p=0.1, scale=(0.02, 0.08)),
+#     ])
+#
+#     eval_tf = transforms.Compose([
+#         transforms.Resize((224, 224)),
+#         transforms.ToTensor(),
+#         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+#     ])
+#     return train_tf, eval_tf
 def build_transforms():
     train_tf = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.RandomResizedCrop(224, scale=(0.85, 1.0)),
+        transforms.Resize((144, 144)),
+        transforms.RandomResizedCrop(128, scale=(0.85, 1.0)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomRotation(degrees=12),
         transforms.ColorJitter(brightness=0.2, contrast=0.2),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-        transforms.RandomErasing(p=0.1, scale=(0.02, 0.08)),
     ])
-
     eval_tf = transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((128, 128)),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])

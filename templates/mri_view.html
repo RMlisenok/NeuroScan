@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>МРТ #{{ mri.id }}</title>
+</head>
+<body>
+    <h1>Снимок МРТ #{{ mri.id }}</h1>
+
+    <img src="{{ url_for('uploaded_file', filename=mri.file_path) }}"
+         alt="МРТ" style="max-width: 500px;">
+
+    <h2>Результат анализа</h2>
+    <p><b>Класс:</b> {{ predicted_class }}</p>
+    <p><b>Уверенность:</b> {{ confidence }}%</p>
+</body>
+</html>
