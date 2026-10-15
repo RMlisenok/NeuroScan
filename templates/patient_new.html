@@ -1,55 +1,70 @@
 {% extends "base.html" %}
 {% block content %}
-<h3 class="text-info mb-4">Новый пациент</h3>
-<form method="post" class="row g-3">
-    <div class="col-md-6">
-        <label class="form-label">ФИО *</label>
-        <input name="full_name" class="form-control bg-dark text-light border-secondary" required>
+<div class="ns-page-head">
+    <h1 class="ns-page-title">Новый пациент</h1>
+</div>
+
+<form method="post" class="ns-card p-4">
+    <div class="ns-section-title">Личные данные</div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <label class="form-label">ФИО *</label>
+            <input name="full_name" class="form-control" required>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Дата рождения</label>
+            <input type="date" name="birth_date" class="form-control">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Пол</label>
+            <select name="gender" class="form-select">
+                <option value="">—</option>
+                <option>М</option>
+                <option>Ж</option>
+            </select>
+        </div>
     </div>
-    <div class="col-md-3">
-        <label class="form-label">Дата рождения</label>
-        <input type="date" name="birth_date" class="form-control bg-dark text-light border-secondary">
+
+    <div class="ns-section-title">Контакты</div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label class="form-label">Телефон</label>
+            <input name="phone" class="form-control">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Email</label>
+            <input name="email" class="form-control">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Полис ОМС</label>
+            <input name="insurance_number" class="form-control">
+        </div>
+        <div class="col-12">
+            <label class="form-label">Адрес</label>
+            <input name="address" class="form-control">
+        </div>
     </div>
-    <div class="col-md-3">
-        <label class="form-label">Пол</label>
-        <select name="gender" class="form-select bg-dark text-light border-secondary">
-            <option value="">—</option>
-            <option>М</option>
-            <option>Ж</option>
-        </select>
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Телефон</label>
-        <input name="phone" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Email</label>
-        <input name="email" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Полис ОМС</label>
-        <input name="insurance_number" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-12">
-        <label class="form-label">Адрес</label>
-        <input name="address" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-12">
-        <label class="form-label">Анамнез</label>
-        <textarea name="anamnesis" rows="3" class="form-control bg-dark text-light border-secondary"></textarea>
-    </div>
-    <div class="col-12">
-        <label class="form-label">Жалобы</label>
-        <textarea name="complaints" rows="4" class="form-control bg-dark text-light border-secondary"
+
+    <div class="ns-section-title">Клинические данные</div>
+    <div class="row g-3">
+        <div class="col-12">
+            <label class="form-label">Анамнез</label>
+            <textarea name="anamnesis" rows="3" class="form-control"></textarea>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Жалобы</label>
+            <textarea name="complaints" rows="4" class="form-control"
 placeholder="Головная боль, тошнота, судороги, нарушения зрения/речи, слабость в конечностях..."></textarea>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Заметки врача</label>
+            <textarea name="notes" rows="2" class="form-control"></textarea>
+        </div>
     </div>
-    <div class="col-12">
-        <label class="form-label">Заметки врача</label>
-        <textarea name="notes" rows="2" class="form-control bg-dark text-light border-secondary"></textarea>
-    </div>
-    <div class="col-12">
-        <button class="btn btn-info fw-bold">Сохранить</button>
-        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">Отмена</a>
+
+    <div class="d-flex gap-2 mt-4 pt-3 border-top">
+        <button class="btn btn-brand">Сохранить</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-ghost">Отмена</a>
     </div>
 </form>
 {% endblock %}
