@@ -1,26 +1,37 @@
 {% extends "base.html" %}
 {% block content %}
-<h3 class="text-info mb-3">История МРТ — {{ patient.full_name }}</h3>
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">История МРТ</h1>
+        <div class="ns-page-sub">{{ patient.full_name }}</div>
+    </div>
+</div>
+
 {% if sessions %}
-<table class="table table-dark table-hover align-middle">
-    <thead><tr><th>№</th><th>Дата</th><th>Снимков</th><th>Статус</th><th></th></tr></thead>
-    <tbody>
-    {% for s in sessions %}
-    <tr>
-        <td>{{ s.id }}</td>
-        <td>{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-        <td>{{ s.images.count() }}</td>
-        <td><span class="badge bg-info text-dark">{{ s.status }}</span></td>
-        <td class="text-end">
-            <a href="{{ url_for('mri_result', sid=s.id) }}" class="btn btn-sm btn-outline-info">Открыть</a>
-            <a href="{{ url_for('session_report', sid=s.id) }}" class="btn btn-sm btn-info">PDF</a>
-        </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="ns-table-wrap mb-3">
+    <table class="table">
+        <thead>
+            <tr><th>№</th><th>Дата</th><th>Снимков</th><th>Статус</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for s in sessions %}
+        <tr>
+            <td>{{ s.id }}</td>
+            <td>{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
+            <td>{{ s.images.count() }}</td>
+            <td><span class="ns-badge ns-badge-info">{{ s.status }}</span></td>
+            <td class="text-end">
+                <a href="{{ url_for('mri_result', sid=s.id) }}" class="btn btn-sm btn-ghost">Открыть</a>
+                <a href="{{ url_for('session_report', sid=s.id) }}" class="btn btn-sm btn-soft">PDF</a>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% else %}
 <div class="alert alert-secondary">Нет исследований.</div>
 {% endif %}
-<a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-outline-secondary">← Назад</a>
+
+<a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">← Назад</a>
 {% endblock %}
