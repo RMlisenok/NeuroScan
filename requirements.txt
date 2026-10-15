@@ -1,0 +1,15 @@
+flask==3.0.0
+flask-login==0.6.3
+flask-sqlalchemy==3.1.1
+flask-wtf==1.2.1
+wtforms==3.1.1
+sqlalchemy==2.0.25
+werkzeug==3.0.1
+torch==2.2.0
+torchvision==0.17.0
+opencv-python==4.9.0.80
+Pillow==10.2.0
+numpy==1.26.4
+scikit-learn==1.4.0
+reportlab==4.0.9
+python-dotenv==1.0.0

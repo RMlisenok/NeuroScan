@@ -1,0 +1,9 @@
+body {
+    background: radial-gradient(circle at 20% 20%, #0a1929 0%, #000 70%);
+    min-height: 100vh;
+}
+.card { box-shadow: 0 0 20px rgba(0, 200, 255, 0.08); }
+.progress { background-color: #1a1a1a; }
+code { color: #6ee7ff; }
+.mask-editor { cursor: crosshair; background: #000; max-height: 420px; object-fit: contain; }
+.table-dark { --bs-table-bg: #0a0a0a; }

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="text-info mb-0">Пациенты</h3>
+    <a href="{{ url_for('patient_new') }}" class="btn btn-info fw-bold">+ Новый пациент</a>
+</div>
+
+<form class="mb-3" method="get">
+    <input name="q" value="{{ q }}" class="form-control bg-dark text-light border-secondary"
+           placeholder="Поиск по ФИО...">
+</form>
+
+{% if patients %}
+<div class="list-group">
+    {% for p in patients %}
+    <a href="{{ url_for('patient_card', pid=p.id) }}"
+       class="list-group-item list-group-item-action bg-black text-light border-secondary d-flex justify-content-between">
+        <div>
+            <b>{{ p.full_name }}</b>
+            <div class="small text-secondary">{{ p.birth_date or '—' }} · {{ p.gender or '—' }}</div>
+        </div>
+        <div class="small text-secondary align-self-center">
+            Сессий: {{ p.sessions|length }}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">Пациентов пока нет.</div>
+{% endif %}
+{% endblock %}

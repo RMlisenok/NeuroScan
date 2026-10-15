@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<h3 class="text-info mb-2">Загрузка МРТ</h3>
+<p class="text-secondary">Пациент: <b>{{ patient.full_name }}</b>. Можно загрузить от 1 до {{ max_images }} снимков.</p>
+
+<form method="post" enctype="multipart/form-data" class="card bg-black border-info p-4">
+    <input type="file" name="files" multiple accept=".png,.jpg,.jpeg,.bmp,.tif,.tiff"
+           class="form-control bg-dark text-light border-secondary mb-3" required>
+    <div class="form-text text-secondary mb-3">
+        Принимаются PNG, JPG, BMP, TIFF. Каждый снимок пройдёт контроль качества.
+    </div>
+    <button class="btn btn-info fw-bold">Загрузить и проанализировать</button>
+</form>
+{% endblock %}
