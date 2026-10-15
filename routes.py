@@ -14,6 +14,7 @@ from models_db import MRISession, MRIImage, User, Patient, AuditLog
 from auth_utils import admin_required, doctor_or_admin_required, doctor_required
 from qc import check_image
 from ml import CLASS_NAMES_RU
+from symptoms_match import analyze_complaints
 
 ALLOWED_EXTENSIONS = {'nii', 'nii.gz', 'dcm', 'png', 'jpg', 'jpeg'}
 
@@ -283,7 +284,17 @@ def mri_upload(pid):
 def mri_result(sid):
     s = _get_session_or_404(sid)
     images = MRIImage.query.filter_by(session_id=s.id).all()
-    return render_template("mri_result.html", session=s, patient=s.patient, images=images)
+    first_img = images[0] if images else None
+    predicted = first_img.predicted_class if first_img else None
+    symptom_result = analyze_complaints(s.patient.complaints or "", predicted_class=predicted)
+
+    return render_template(
+        "mri_result.html",
+        session=s,
+        patient=s.patient,
+        images=images,
+        symptom_result=symptom_result,
+    )
 
 from flask import send_from_directory
 

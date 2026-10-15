@@ -24,6 +24,8 @@ from ml import (build_model, GradCAM, prepare_input, overlay_cam,
                 largest_bbox, bbox_area_pct, CLASS_NAMES_RU)
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from class_info import CLASS_INFO
+from symptoms_match import analyze_complaints
 
 FONT_DIR = "/usr/share/fonts/truetype/dejavu"
 pdfmetrics.registerFont(TTFont("DejaVu", f"{FONT_DIR}/DejaVuSans.ttf"))
@@ -352,7 +354,48 @@ def _build_pdf(s):
     if y < 200:
         c.showPage()
         y = H - 60
+        
+    from symptoms_match import analyze_complaints
 
+    complaints = s.patient.complaints or ""
+    first_img_for_pdf = s.images.first() if hasattr(s.images, "first") else None
+    predicted_for_pdf = first_img_for_pdf.predicted_class if first_img_for_pdf else None
+    sym = analyze_complaints(complaints, predicted_class=predicted_for_pdf)
+
+    if sym["has_text"]:
+        if y < 250:
+            c.showPage()
+            y = H - 60
+
+        c.setFont("DejaVu-Bold", 12)
+        c.drawString(40, y, "Сопоставление жалоб и результатов анализа")
+        y -= 20
+
+        c.setFont("DejaVu", 10)
+        if sym["warning"]:
+            c.setFillColorRGB(0.8, 0.4, 0)
+            for line in _wrap_text("⚠ " + sym["warning"], 95):
+                c.drawString(40, y, line)
+                y -= 13
+            c.setFillColorRGB(0, 0, 0)
+        else:
+            c.setFillColorRGB(0.1, 0.5, 0.1)
+            c.drawString(40, y, "✅ Жалобы пациента согласуются с результатом модели.")
+            c.setFillColorRGB(0, 0, 0)
+            y -= 16
+
+        y -= 6
+        c.setFont("DejaVu-Bold", 10)
+        c.drawString(40, y, "Класс")
+        c.drawString(300, y, "Сходство с жалобами")
+        y -= 14
+
+        c.setFont("DejaVu", 10)
+        for cls, score in sym["similarity"].items():
+            name = CLASS_INFO.get(cls, {}).get("name_ru", cls)
+            c.drawString(40, y, name)
+            c.drawString(300, y, f"{score * 100:.1f}%")
+            y -= 13
     y -= 10
     c.setFont("DejaVu", 10)
     now = _dt.now().strftime("%d.%m.%Y %H:%M")
