@@ -1,84 +1,94 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-start mb-3">
+<div class="ns-page-head">
     <div>
-        <h3 class="text-info mb-1">{{ patient.full_name }}</h3>
-        <div class="text-secondary small">
+        <h1 class="ns-page-title">{{ patient.full_name }}</h1>
+        <div class="ns-page-sub">
             {{ patient.birth_date or '—' }} · {{ patient.gender or '—' }} · полис {{ patient.insurance_number or '—' }}
         </div>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('patient_history', pid=patient.id) }}" class="btn btn-outline-info">История</a>
-        <a href="{{ url_for('mri_upload_page', pid=patient.id) }}" class="btn btn-info fw-bold">+ Загрузить МРТ</a>
+        <a href="{{ url_for('patient_history', pid=patient.id) }}" class="btn btn-ghost">История</a>
+        <a href="{{ url_for('mri_upload_page', pid=patient.id) }}" class="btn btn-brand">+ Загрузить МРТ</a>
     </div>
 </div>
 
-<form method="post" action="{{ url_for('patient_edit', pid=patient.id) }}" class="row g-3 mb-4">
-    <div class="col-md-6">
-        <label class="form-label">ФИО</label>
-        <input name="full_name" value="{{ patient.full_name }}" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">Дата рождения</label>
-        <input type="date" name="birth_date" value="{{ patient.birth_date or '' }}"
-               class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-md-3">
-        <label class="form-label">Пол</label>
-        <select name="gender" class="form-select bg-dark text-light border-secondary">
-            <option value="">—</option>
-            <option {% if patient.gender=='М' %}selected{% endif %}>М</option>
-            <option {% if patient.gender=='Ж' %}selected{% endif %}>Ж</option>
-        </select>
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Телефон</label>
-        <input name="phone" value="{{ patient.phone or '' }}" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Email</label>
-        <input name="email" value="{{ patient.email or '' }}" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-md-4">
-        <label class="form-label">Полис</label>
-        <input name="insurance_number" value="{{ patient.insurance_number or '' }}" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-12">
-        <label class="form-label">Адрес</label>
-        <input name="address" value="{{ patient.address or '' }}" class="form-control bg-dark text-light border-secondary">
-    </div>
-    <div class="col-12">
-        <label class="form-label">Анамнез</label>
-        <textarea name="anamnesis" rows="3" class="form-control bg-dark text-light border-secondary">{{ patient.anamnesis or '' }}</textarea>
-    </div>
-    <div class="col-12">
-        <label class="form-label">Жалобы</label>
-        <textarea name="complaints" rows="4" class="form-control bg-dark text-light border-secondary">{{ patient.complaints or '' }}</textarea>
-        <div class="form-text text-secondary">
-            Типичные симптомы: упорная головная боль, тошнота/рвота, судороги,
-            нарушения зрения, речи, слабость в конечностях, изменения личности.
+<form method="post" action="{{ url_for('patient_edit', pid=patient.id) }}" class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Личные данные</div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <label class="form-label">ФИО</label>
+            <input name="full_name" value="{{ patient.full_name }}" class="form-control">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Дата рождения</label>
+            <input type="date" name="birth_date" value="{{ patient.birth_date or '' }}" class="form-control">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Пол</label>
+            <select name="gender" class="form-select">
+                <option value="">—</option>
+                <option {% if patient.gender=='М' %}selected{% endif %}>М</option>
+                <option {% if patient.gender=='Ж' %}selected{% endif %}>Ж</option>
+            </select>
         </div>
     </div>
-    <div class="col-12">
-        <label class="form-label">Заметки</label>
-        <textarea name="notes" rows="2" class="form-control bg-dark text-light border-secondary">{{ patient.notes or '' }}</textarea>
+
+    <div class="ns-section-title">Контакты</div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label class="form-label">Телефон</label>
+            <input name="phone" value="{{ patient.phone or '' }}" class="form-control">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Email</label>
+            <input name="email" value="{{ patient.email or '' }}" class="form-control">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Полис</label>
+            <input name="insurance_number" value="{{ patient.insurance_number or '' }}" class="form-control">
+        </div>
+        <div class="col-12">
+            <label class="form-label">Адрес</label>
+            <input name="address" value="{{ patient.address or '' }}" class="form-control">
+        </div>
     </div>
-    <div class="col-12">
-        <button class="btn btn-info fw-bold">Сохранить</button>
+
+    <div class="ns-section-title">Клинические данные</div>
+    <div class="row g-3">
+        <div class="col-12">
+            <label class="form-label">Анамнез</label>
+            <textarea name="anamnesis" rows="3" class="form-control">{{ patient.anamnesis or '' }}</textarea>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Жалобы</label>
+            <textarea name="complaints" rows="4" class="form-control">{{ patient.complaints or '' }}</textarea>
+            <div class="form-text">
+                Типичные симптомы: упорная головная боль, тошнота/рвота, судороги,
+                нарушения зрения, речи, слабость в конечностях, изменения личности.
+            </div>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Заметки</label>
+            <textarea name="notes" rows="2" class="form-control">{{ patient.notes or '' }}</textarea>
+        </div>
+    </div>
+
+    <div class="mt-4 pt-3 border-top">
+        <button class="btn btn-brand">Сохранить</button>
     </div>
 </form>
 
-<h5 class="text-info">Сессии МРТ</h5>
+<h2 class="ns-section-title">Сессии МРТ</h2>
 {% if sessions %}
-<div class="list-group">
+<div class="ns-list">
     {% for s in sessions %}
-    <a href="{{ url_for('mri_result', sid=s.id) }}"
-       class="list-group-item list-group-item-action bg-black text-light border-secondary d-flex justify-content-between">
+    <a href="{{ url_for('mri_result', sid=s.id) }}" class="ns-list-item">
         <div>
-            <b>Сессия №{{ s.id }}</b>
-            <div class="small text-secondary">{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+            <div class="ns-list-title">Сессия №{{ s.id }}</div>
+            <div class="ns-list-meta">{{ s.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
         </div>
-        <span class="badge bg-info text-dark align-self-center">{{ s.status }}</span>
+        <span class="ns-badge ns-badge-info">{{ s.status }}</span>
     </a>
     {% endfor %}
 </div>

@@ -1,27 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="text-info mb-0">Пациенты</h3>
-    <a href="{{ url_for('patient_new') }}" class="btn btn-info fw-bold">+ Новый пациент</a>
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">Пациенты</h1>
+        <div class="ns-page-sub">Всего записей: {{ patients|list|length }}</div>
+    </div>
+    <a href="{{ url_for('patient_new') }}" class="btn btn-brand">+ Новый пациент</a>
 </div>
 
 <form class="mb-3" method="get">
-    <input name="q" value="{{ q }}" class="form-control bg-dark text-light border-secondary"
-           placeholder="Поиск по ФИО...">
+    <input name="q" value="{{ q }}" class="form-control" placeholder="Поиск по ФИО...">
 </form>
 
 {% if patients %}
-<div class="list-group">
+<div class="ns-list">
     {% for p in patients %}
-    <a href="{{ url_for('patient_card', pid=p.id) }}"
-       class="list-group-item list-group-item-action bg-black text-light border-secondary d-flex justify-content-between">
+    <a href="{{ url_for('patient_card', pid=p.id) }}" class="ns-list-item">
         <div>
-            <b>{{ p.full_name }}</b>
-            <div class="small text-secondary">{{ p.birth_date or '—' }} · {{ p.gender or '—' }}</div>
+            <div class="ns-list-title">{{ p.full_name }}</div>
+            <div class="ns-list-meta">{{ p.birth_date or '—' }} · {{ p.gender or '—' }}</div>
         </div>
-        <div class="small text-secondary align-self-center">
-            Сессий: {{ p.sessions.count() }}
-        </div>
+        <div class="ns-list-side">Сессий: {{ p.sessions.count() }}</div>
     </a>
     {% endfor %}
 </div>

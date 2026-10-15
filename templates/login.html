@@ -1,23 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="row justify-content-center mt-5">
-    <div class="col-md-5">
-        <div class="card bg-black border-info">
-            <div class="card-body p-4">
-                <h3 class="text-info mb-4">Вход в систему</h3>
-                <form method="post">
-                    <div class="mb-3">
-                        <label class="form-label">Логин</label>
-                        <input name="username" class="form-control bg-dark text-light border-secondary" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Ключ доступа</label>
-                        <input type="password" name="password" class="form-control bg-dark text-light border-secondary" required>
-                    </div>
-                    <button class="btn btn-info w-100 fw-bold">Войти</button>
-                </form>
-                <p class="text-secondary small mt-3 mb-0">По умолчанию: admin / admin123</p>
-            </div>
+    <div class="col-md-5 col-lg-4">
+        <div class="ns-card p-4 p-md-5">
+            <h3 class="ns-page-title mb-1">Вход в систему</h3>
+            <p class="ns-page-sub mb-4">Укажите логин и ключ доступа</p>
+
+            <form method="post">
+                <div class="mb-3">
+                    <label class="form-label">Логин</label>
+                    <input name="username" class="form-control" required>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label">Ключ доступа</label>
+                    <input type="password" name="password" class="form-control" required>
+                </div>
+                <button class="btn btn-brand w-100">Войти</button>
+            </form>
+
+            <p class="ns-hint mt-3 mb-0">По умолчанию: admin / admin123</p>
         </div>
     </div>
 </div>
