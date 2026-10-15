@@ -159,6 +159,26 @@ def admin_logs():
     return render_template("admin_logs.html",
                            logs=pagination.items,
                            pagination=pagination)
+@app.route("/admin/retrain", methods=["POST"])
+@login_required
+@admin_required
+def admin_retrain():
+    """Запускает дообучение в фоне."""
+    import subprocess, sys
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    log_path = os.path.join(base, "retrain.log")
+
+    with open(log_path, "w") as log:
+        proc = subprocess.Popen(
+            [sys.executable, "retrain.py"],
+            cwd=base,
+            stdout=log, stderr=subprocess.STDOUT,
+        )
+
+    log_action("retrain_started", "system", details=f"pid={proc.pid}")
+    flash(f"Дообучение запущено (PID {proc.pid}). Логи: retrain.log")
+    return redirect(url_for("admin_users"))
 
 @app.route("/patient/new", methods=["GET", "POST"])
 @login_required
@@ -305,7 +325,6 @@ def uploaded_file(filename):
 @app.route("/image/<int:iid>/mask", methods=["POST"])
 @login_required
 def save_mask(iid):
-    """Сохраняет отредактированную маску (PNG base64) и отправляет на дообучение."""
     img = _get_image_or_404(iid)
     data = request.get_json() or {}
     mask_b64 = data.get("mask")
@@ -323,12 +342,38 @@ def save_mask(iid):
     cv2.imwrite(mask_path, mask)
     img.edited_mask_path = _rel(mask_path)
     img.session.status = "edited"
-    db.session.commit()
+    img.is_sent_to_training = False
+    img.training_used = False
 
-    # TODO: положить в очередь на дообучение (active learning)
+    db.session.commit()
     log_action("mask_edit", "image", img.id)
     return jsonify({"ok": True})
 
+@app.route("/image/<int:iid>/send-to-training", methods=["POST"])
+@login_required
+def send_to_training(iid):
+    """Помечает снимок для дообучения с подтверждённым классом."""
+    img = _get_image_or_404(iid)
+    data = request.get_json() or {}
+    verified = data.get("verified_class")
+
+    if verified not in ("glioma", "meningioma", "pituitary", "notumor"):
+        return jsonify({"ok": False, "error": "Недопустимый класс"}), 400
+
+    if not img.edited_mask_path:
+        return jsonify({
+            "ok": False,
+            "error": "Сначала сохраните маску — она нужна для дообучения",
+        }), 400
+
+    img.verified_class = verified
+    img.is_sent_to_training = True
+    img.doctor_verified = True
+    db.session.commit()
+
+    log_action("send_to_training", "image", img.id,
+               f"verified_class={verified}")
+    return jsonify({"ok": True, "message": "Снимок добавлен в очередь дообучения"})
 
 @app.route("/session/<int:sid>/report")
 @login_required

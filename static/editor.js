@@ -73,6 +73,35 @@ function saveMask(id) {
     });
 }
 
+function sendToTraining(imgId) {
+    const sel = document.getElementById(`verified-class-${imgId}`);
+    const status = document.getElementById(`training-status-${imgId}`);
+    if (!sel || !status) return;
+
+    status.textContent = "Отправка...";
+    status.className = "small mt-1 text-secondary";
+
+    fetch(`/image/${imgId}/send-to-training`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verified_class: sel.value }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            status.textContent = "✅ " + (data.message || "Отправлено");
+            status.className = "small mt-1 text-success";
+        } else {
+            status.textContent = "⚠ " + (data.error || "Ошибка");
+            status.className = "small mt-1 text-warning";
+        }
+    })
+    .catch(err => {
+        status.textContent = "❌ " + err;
+        status.className = "small mt-1 text-danger";
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".mask-editor").forEach(initEditor);
 });

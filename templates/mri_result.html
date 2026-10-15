@@ -167,6 +167,28 @@
                         💾 Сохранить маску
                     </button>
                     <div id="status-{{ img.id }}" class="small mt-2"></div>
+                    <div class="mt-3 p-2 border border-info rounded">
+                        <label class="small text-info d-block mb-1">
+                            🎓 Подтвердите диагноз для дообучения:
+                        </label>
+                        <select class="form-select form-select-sm bg-dark text-light"
+                                id="verified-class-{{ img.id }}">
+                            <option value="glioma" {% if img.predicted_class=='glioma' %}selected{% endif %}>Глиома</option>
+                            <option value="meningioma" {% if img.predicted_class=='meningioma' %}selected{% endif %}>Менингиома</option>
+                            <option value="pituitary" {% if img.predicted_class=='pituitary' %}selected{% endif %}>Опухоль гипофиза</option>
+                            <option value="notumor" {% if img.predicted_class=='notumor' %}selected{% endif %}>Опухоль не выявлена</option>
+                        </select>
+                        <button type="button" class="btn btn-sm btn-outline-info mt-2 w-100"
+                                onclick="sendToTraining({{ img.id }})">
+                            🎓 Отправить на дообучение
+                        </button>
+                        <div id="training-status-{{ img.id }}" class="small mt-1"></div>
+                        {% if img.is_sent_to_training %}
+                            <div class="small text-success mt-1">
+                                ✅ Уже в очереди (класс: {{ img.verified_class }})
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         {% endif %}

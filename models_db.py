@@ -206,6 +206,8 @@ class MRIImage(db.Model):
     # Флаги
     is_sent_to_training = db.Column(db.Boolean, default=False, nullable=False)
     doctor_verified = db.Column(db.Boolean, default=False, nullable=False)
+    verified_class = db.Column(db.String(64), nullable=True)
+    training_used = db.Column(db.Boolean, default=False, nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow,
