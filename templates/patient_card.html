@@ -8,8 +8,22 @@
         </div>
     </div>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('patient_history', pid=patient.id) }}" class="btn btn-ghost">История</a>
-        <a href="{{ url_for('mri_upload_page', pid=patient.id) }}" class="btn btn-brand">+ Загрузить МРТ</a>
+        <a href="{{ url_for('patient_history', pid=patient.id) }}" class="btn btn-ghost">История МРТ</a>
+
+        {% if current_user.is_neurologist %}
+            {% set open_visit = visits | selectattr('status', 'equalto', 'open') | list | first %}
+            {% if open_visit %}
+                <a href="{{ url_for('visit_primary', vid=open_visit.id) }}" class="btn btn-brand">
+                    Продолжить приём
+                </a>
+            {% endif %}
+        {% endif %}
+        {% if current_user.is_admin %}
+            <form method="post" action="{{ url_for('patient_delete', pid=patient.id) }}"
+                  onsubmit="return confirm('Удалить пациента и все его визиты?');" class="d-inline">
+                <button class="btn btn-outline-danger">Удалить</button>
+            </form>
+        {% endif %}
     </div>
 </div>
 
@@ -32,34 +46,14 @@
                 <option {% if patient.gender=='Ж' %}selected{% endif %}>Ж</option>
             </select>
         </div>
-    </div>
-
-    <div class="ns-section-title">Контакты</div>
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <label class="form-label">Телефон</label>
-            <input name="phone" value="{{ patient.phone or '' }}" class="form-control">
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">Email</label>
-            <input name="email" value="{{ patient.email or '' }}" class="form-control">
-        </div>
         <div class="col-md-4">
             <label class="form-label">Полис</label>
             <input name="insurance_number" value="{{ patient.insurance_number or '' }}" class="form-control">
-        </div>
-        <div class="col-12">
-            <label class="form-label">Адрес</label>
-            <input name="address" value="{{ patient.address or '' }}" class="form-control">
         </div>
     </div>
 
     <div class="ns-section-title">Клинические данные</div>
     <div class="row g-3">
-        <div class="col-12">
-            <label class="form-label">Анамнез</label>
-            <textarea name="anamnesis" rows="3" class="form-control">{{ patient.anamnesis or '' }}</textarea>
-        </div>
         <div class="col-12">
             <label class="form-label">Жалобы</label>
             <textarea name="complaints" rows="4" class="form-control">{{ patient.complaints or '' }}</textarea>
@@ -79,8 +73,38 @@
     </div>
 </form>
 
-<h2 class="ns-section-title">Сессии МРТ</h2>
+<h2 class="ns-section-title">Приёмы</h2>
+{% if visits %}
+<div class="ns-list">
+    {% for v in visits %}
+    {% set status_label = {
+        'open': 'открыт',
+        'awaiting_mri': 'ожидает МРТ',
+        'awaiting_followup': 'ожидает повторного приёма',
+        'closed': 'завершён'
+    } %}
+    <a href="{{ url_for('visit_view', vid=v.id) }}" class="ns-list-item">
+        <div>
+            <div class="ns-list-title">
+                Приём №{{ v.id }} ·
+                {% if v.visit_type == 'followup' %}повторный{% else %}первичный{% endif %}
+            </div>
+            <div class="ns-list-meta">
+                {{ v.created_at.strftime('%d.%m.%Y %H:%M') }}
+                {% if v.doctor %} · {{ v.doctor.full_name }}{% endif %}
+                {% if v.mri_session %} · МРТ #{{ v.mri_session.id }}{% endif %}
+            </div>
+        </div>
+        <span class="ns-badge ns-badge-info">{{ status_label.get(v.status, v.status) }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">Приёмов ещё не было.</div>
+{% endif %}
+
 {% if sessions %}
+<h2 class="ns-section-title mt-4">Сессии МРТ</h2>
 <div class="ns-list">
     {% for s in sessions %}
     <a href="{{ url_for('mri_result', sid=s.id) }}" class="ns-list-item">
@@ -92,7 +116,5 @@
     </a>
     {% endfor %}
 </div>
-{% else %}
-<div class="alert alert-secondary">МРТ ещё не загружались.</div>
 {% endif %}
 {% endblock %}

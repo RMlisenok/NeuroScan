@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">Первичный приём невролога</h1>
+        <div class="ns-page-sub">
+            {{ patient.full_name }} · {{ patient.birth_date or '—' }} · {{ patient.gender or '—' }}
+        </div>
+    </div>
+    <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">← К карте пациента</a>
+</div>
+
+<form method="post" class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Жалобы</div>
+    <textarea name="complaints" rows="4" class="form-control mb-4">{{ report.complaints if report else (patient.complaints or '') }}</textarea>
+
+    {# ===== Анализ модели ===== #}
+    {% if symptom_result and symptom_result.has_text %}
+    <div class="ns-card p-3 mb-4" style="background:rgba(56,189,248,.06);">
+        <div class="ns-section-title">🧠 Предварительный анализ жалоб моделью</div>
+
+        {% if symptom_result.best_match %}
+            <p class="mb-2">
+                По тексту жалоб модель склоняется к классу:
+                <b>{{ CLASS_NAMES_RU.get(symptom_result.best_match, symptom_result.best_match) }}</b>
+            </p>
+        {% endif %}
+
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr><th>Класс</th><th>Сходство (TF-IDF)</th><th>Ключевых слов</th><th>Итог</th></tr>
+            </thead>
+            <tbody>
+            {% for cls, score in symptom_result.similarity.items() %}
+                <tr {% if cls == symptom_result.best_match %}class="is-active"{% endif %}>
+                    <td>{{ CLASS_NAMES_RU.get(cls, cls) }}</td>
+                    <td>{{ "%.1f"|format(score * 100) }}%</td>
+                    <td>{{ symptom_result.keyword_hits.get(cls, 0) }}</td>
+                    <td>{{ "%.1f"|format(symptom_result.combined.get(cls, 0) * 100) }}%</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if symptom_result.matched and symptom_result.best_match %}
+            {% set hits = symptom_result.matched.get(symptom_result.best_match, []) %}
+            {% if hits %}
+                <p class="ns-hint mt-2 mb-0">
+                    Совпавшие ключевые слова: {{ hits[:8]|join(', ') }}
+                </p>
+            {% endif %}
+        {% endif %}
+
+        <p class="ns-hint mt-2 mb-0">Результат носит вспомогательный характер и не является диагнозом.</p>
+    </div>
+    {% elif symptom_result and symptom_result.warning %}
+        <div class="alert alert-secondary mb-4">{{ symptom_result.warning }}</div>
+    {% endif %}
+
+    <div class="ns-section-title">Анамнез настоящего заболевания</div>
+    <textarea name="disease_anamnesis" rows="3" class="form-control mb-4">{{ report.disease_anamnesis if report else '' }}</textarea>
+
+    <div class="ns-section-title">Анамнез жизни</div>
+    <textarea name="life_anamnesis" rows="5" class="form-control mb-4"
+placeholder="Хронические заболевания, наследственность, аллергии, препараты, факторы риска">{{ report.life_anamnesis if report else '' }}</textarea>
+
+    <div class="ns-section-title">Объективный статус</div>
+    <textarea name="objective_status" rows="4" class="form-control mb-4">{{ report.objective_status if report else '' }}</textarea>
+
+    <div class="ns-section-title">Предварительная диагностическая оценка</div>
+    <textarea name="preliminary_diagnosis" rows="3" class="form-control mb-4">{{ report.preliminary_diagnosis if report else '' }}</textarea>
+
+    <div class="ns-section-title">План обследований и действий</div>
+    <textarea name="examination_plan" rows="3" class="form-control mb-4">{{ report.examination_plan if report else '' }}</textarea>
+
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="send_to_mri" id="send_to_mri"
+               {% if visit.mri_session %}checked disabled{% endif %}>
+        <label class="form-check-label" for="send_to_mri">Направить на МРТ</label>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-brand">Сохранить</button>
+        <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">Отмена</a>
+    </div>
+</form>
+{% endblock %}

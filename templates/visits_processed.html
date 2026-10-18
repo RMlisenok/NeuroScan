@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ns-page-head">
+    <h1 class="ns-page-title">Завершённые / обработанные</h1>
+</div>
+{% if visits %}
+<div class="ns-list">
+    {% for v in visits %}
+    <a href="{{ url_for('visit_view', vid=v.id) }}" class="ns-list-item">
+        <div>
+            <div class="ns-list-title">{{ v.patient.full_name }} · приём №{{ v.id }}</div>
+            <div class="ns-list-meta">
+                {{ v.created_at.strftime('%d.%m.%Y %H:%M') }}
+                {% if v.radiologist_report %} · подписано рентгенологом{% endif %}
+            </div>
+        </div>
+        <span class="ns-badge ns-badge-info">{{ v.status }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">Пока пусто.</div>
+{% endif %}
+{% endblock %}

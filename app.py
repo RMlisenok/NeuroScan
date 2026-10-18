@@ -17,7 +17,7 @@ from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-
+from models_db import db, User, Patient, MRISession, MRIImage, AuditLog, Visit, VisitStatus, NeurologistReport, RadiologistReport
 from config import Config
 from models_db import db, User, Patient, MRISession, MRIImage, AuditLog
 from ml import (build_model, GradCAM, prepare_input, overlay_cam,
@@ -26,12 +26,12 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from class_info import CLASS_INFO
 from symptoms_match import analyze_complaints
-
-FONT_DIR = "/usr/share/fonts/truetype/dejavu"
-pdfmetrics.registerFont(TTFont("DejaVu", f"{FONT_DIR}/DejaVuSans.ttf"))
-pdfmetrics.registerFont(TTFont("DejaVu-Bold", f"{FONT_DIR}/DejaVuSans-Bold.ttf"))
-pdfmetrics.registerFont(TTFont("DejaVu-Oblique", f"{FONT_DIR}/DejaVuSans-Oblique.ttf"))
-
+from pdf_utils import (
+    build_session_pdf,
+    build_radiology_pdf,
+    build_primary_pdf,
+    build_followup_pdf,
+)
 
 load_dotenv(Path(__file__).resolve().parent / '.env')
 app = Flask(__name__)
@@ -95,9 +95,9 @@ def role_required(role):
     return deco
 
 
-def allowed_file(name):
-    return "." in name and name.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXT"]
-
+ALLOWED_EXTENSIONS = {'nii', 'nii.gz', 'dcm', 'png', 'jpg', 'jpeg', 'bmp', 'tif', 'tiff'}
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.cli.command("init-db")
 def init_db():
@@ -168,23 +168,37 @@ def _abs(path):
 
 def _get_patient_or_404(pid):
     p = Patient.query.get_or_404(pid)
-    if p.doctor_id != current_user.id and current_user.role != "admin":
-        abort(403)
-    return p
+    if current_user.is_admin:
+        return p
+    if current_user.is_neurologist and p.doctor_id == current_user.id:
+        return p
+    if current_user.is_radiologist:
+        # рентгенолог может смотреть любого пациента,
+        # у которого есть визит в статусе awaiting_mri или awaiting_followup
+        has_access = any(v.status in ('awaiting_mri', 'awaiting_followup') for v in p.visits)
+        if has_access:
+            return p
+    abort(403)
 
 
 def _get_session_or_404(sid):
     s = MRISession.query.get_or_404(sid)
-    if s.patient.doctor_id != current_user.id and current_user.role != "admin":
-        abort(403)
-    return s
+    if current_user.is_admin:
+        return s
+    if current_user.is_radiologist:
+        return s   # рентгенолог видит все сессии
+    if s.patient.doctor_id == current_user.id:
+        return s
+    abort(403)
 
 
 def _get_image_or_404(iid):
     img = MRIImage.query.get_or_404(iid)
-    if img.session.patient.doctor_id != current_user.id and current_user.role != "admin":
-        abort(403)
-    return img
+    if current_user.is_admin or current_user.is_radiologist:
+        return img
+    if img.session.patient.doctor_id == current_user.id:
+        return img
+    abort(403)
 
 
 def _run_inference(img_bgr, folder, uid, rec):
@@ -215,217 +229,6 @@ def _run_inference(img_bgr, folder, uid, rec):
     rec.cam_threshold = 0.5
 
 
-def _wrap_text(text, width):
-    words = text.split()
-    lines = []
-    cur = ""
-    for w in words:
-        if len(cur) + len(w) + 1 <= width:
-            cur = (cur + " " + w).strip()
-        else:
-            if cur:
-                lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-    return lines or [""]
-
-
-def _build_pdf(s):
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.utils import ImageReader
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    from datetime import datetime as _dt
-    FONT_DIR = "/usr/share/fonts/truetype/dejavu"
-    pdfmetrics.registerFont(TTFont("DejaVu", f"{FONT_DIR}/DejaVuSans.ttf"))
-    pdfmetrics.registerFont(TTFont("DejaVu-Bold", f"{FONT_DIR}/DejaVuSans-Bold.ttf"))
-    pdfmetrics.registerFont(TTFont("DejaVu-Oblique", f"{FONT_DIR}/DejaVuSans-Oblique.ttf"))
-
-    buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
-    W, H = A4
-
-    c.setFont("DejaVu-Bold", 16)
-    c.drawString(40, H - 50, "NeuroScan AI — отчёт по МРТ-исследованию")
-
-    c.setFont("DejaVu", 10)
-    y = H - 80
-
-    doctor = s.patient.doctor
-    doctor_name = doctor.full_name if doctor else "—"
-    department = getattr(doctor, "department", None) or "—"
-
-    age = s.patient.age if hasattr(s.patient, "age") else "—"
-
-    gender_raw = s.patient.gender or "—"
-    gender = {"М": "Мужской", "Ж": "Женский", "M": "Мужской", "F": "Женский"}.get(gender_raw, gender_raw)
-
-    exam_time = s.created_at.strftime("%d.%m.%Y %H:%M") if s.created_at else "—"
-    first_img = s.images.first() if hasattr(s.images, "first") else (list(s.images)[0] if s.images else None)
-
-    diagnosis = "—"
-    if first_img and first_img.predicted_class:
-        from ml import CLASS_NAMES_RU
-        diagnosis = CLASS_NAMES_RU.get(first_img.predicted_class, first_img.predicted_class)
-    lines = [
-        ("ФИО пациента:", s.patient.full_name or "—"),
-        ("Возраст:", f"{age} лет" if age != "—" else "—"),
-        ("Пол:", gender),
-        ("Лечащий врач:", doctor_name),
-        ("Отделение:", department),
-        ("Тип обследования:", "МРТ головного мозга"),
-        ("Время обследования:", exam_time),
-        ("Диагноз (предварительный):", diagnosis),
-    ]
-
-    c.setFont("DejaVu", 10)
-    for label, value in lines:
-        c.setFont("DejaVu-Bold", 10)
-        c.drawString(40, y, label)
-        c.setFont("DejaVu", 10)
-        c.drawString(200, y, str(value)[:80])
-        y -= 16
-    y -= 6
-    c.setFont("DejaVu-Bold", 11)
-    c.drawString(40, y, "Анамнез:")
-    y -= 14
-    c.setFont("DejaVu", 10)
-    anamnesis = (s.patient.anamnesis or "Не указан").strip()
-    for line in _wrap_text(anamnesis, 90):
-        if y < 260:
-            c.showPage()
-            y = H - 60
-            c.setFont("DejaVu", 10)
-        c.drawString(40, y, line)
-        y -= 13
-
-    y -= 10
-    c.setFont("DejaVu-Bold", 12)
-    c.drawString(40, y, "Результаты анализа снимков:")
-    y -= 20
-
-    for i, img in enumerate(s.images, 1):
-        if y < 300:
-            c.showPage()
-            y = H - 60
-
-        c.setFont("DejaVu-Bold", 10)
-        c.drawString(40, y, f"Снимок {i}: {img.filename}")
-        y -= 14
-
-        c.setFont("DejaVu", 9)
-        if not img.qc_ok:
-            try:
-                reasons = json.loads(img.qc_reasons or "[]")
-            except Exception:
-                reasons = []
-            c.drawString(40, y, "QC: отклонён. " + "; ".join(reasons)[:110])
-            y -= 14
-            continue
-
-        from ml import CLASS_NAMES_RU
-        cls_ru = CLASS_NAMES_RU.get(img.predicted_class, img.predicted_class or "—")
-        c.drawString(40, y, f"Диагноз модели: {cls_ru}")
-        if img.confidence is not None:
-            c.drawString(320, y, f"Уверенность: {img.confidence*100:.1f}%")
-        y -= 14
-
-        if img.bbox:
-            c.drawString(40, y, f"Область интереса (bbox): {img.bbox} | Площадь: {img.area_pct}%")
-            y -= 14
-
-        try:
-            orig = _abs(img.original_path)
-            c.drawImage(ImageReader(orig), 40, y - 160,
-                        width=220, height=160, preserveAspectRatio=True)
-            c.setFont("DejaVu", 8)
-            c.drawString(40, y - 172, "Оригинал")
-            if img.overlay_path:
-                ov = _abs(img.overlay_path)
-                c.drawImage(ImageReader(ov), 290, y - 160,
-                            width=220, height=160, preserveAspectRatio=True)
-                c.drawString(290, y - 172, "Grad-CAM (область внимания модели)")
-            y -= 190
-        except Exception:
-            y -= 20
-
-    if y < 200:
-        c.showPage()
-        y = H - 60
-        
-    from symptoms_match import analyze_complaints
-
-    complaints = s.patient.complaints or ""
-    first_img_for_pdf = s.images.first() if hasattr(s.images, "first") else None
-    predicted_for_pdf = first_img_for_pdf.predicted_class if first_img_for_pdf else None
-    sym = analyze_complaints(complaints, predicted_class=predicted_for_pdf)
-
-    if sym["has_text"]:
-        if y < 250:
-            c.showPage()
-            y = H - 60
-
-        c.setFont("DejaVu-Bold", 12)
-        c.drawString(40, y, "Сопоставление жалоб и результатов анализа")
-        y -= 20
-
-        c.setFont("DejaVu", 10)
-        if sym["warning"]:
-            c.setFillColorRGB(0.8, 0.4, 0)
-            for line in _wrap_text("⚠ " + sym["warning"], 95):
-                c.drawString(40, y, line)
-                y -= 13
-            c.setFillColorRGB(0, 0, 0)
-        else:
-            c.setFillColorRGB(0.1, 0.5, 0.1)
-            c.drawString(40, y, "✅ Жалобы пациента согласуются с результатом модели.")
-            c.setFillColorRGB(0, 0, 0)
-            y -= 16
-
-        y -= 6
-        c.setFont("DejaVu-Bold", 10)
-        c.drawString(40, y, "Класс")
-        c.drawString(300, y, "Сходство с жалобами")
-        y -= 14
-
-        c.setFont("DejaVu", 10)
-        for cls, score in sym["similarity"].items():
-            name = CLASS_INFO.get(cls, {}).get("name_ru", cls)
-            c.drawString(40, y, name)
-            c.drawString(300, y, f"{score * 100:.1f}%")
-            y -= 13
-    y -= 10
-    c.setFont("DejaVu", 10)
-    now = _dt.now().strftime("%d.%m.%Y %H:%M")
-
-    c.drawString(40, y, f"Выполнил (рентгенолог): ______________________  "
-                        f"Время сбора данных: {now}")
-    y -= 20
-    c.drawString(40, y, f"Проверил (лечащий врач): {doctor_name}  "
-                        f"Время проверки: ______________")
-    y -= 24
-
-    c.setFont("DejaVu", 10)
-    c.drawString(40, y, "Подпись врача: ______________________")
-    y -= 24
-
-    c.setFont("DejaVu-Oblique", 9)
-    note = ("Примечание: результат автоматического анализа носит вспомогательный характер "
-            "и не является медицинским заключением. Окончательный диагноз устанавливает "
-            "лечащий врач на основании клинической картины и дополнительных исследований.")
-    for line in _wrap_text(note, 100):
-        c.drawString(40, y, line)
-        y -= 12
-
-    c.showPage()
-    c.save()
-    buf.seek(0)
-    return send_file(buf, as_attachment=True,
-                     download_name=f"neuroscan_session_{s.id}.pdf",
-                     mimetype="application/pdf")
-
 
 with app.app_context():
     db.create_all()
@@ -441,6 +244,7 @@ with app.app_context():
         print("[INIT] Создан admin/admin123 — смените пароль!")
 
 import routes
+import routes_visits
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

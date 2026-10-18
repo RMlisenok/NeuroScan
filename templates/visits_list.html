@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ns-page-head">
+    <h1 class="ns-page-title">Визиты в работе</h1>
+</div>
+
+{% if visits %}
+<div class="ns-list">
+    {% for v in visits %}
+    <a href="{% if v.status == 'awaiting_mri' %}{{ url_for('visit_radiology', vid=v.id) }}
+             {% else %}{{ url_for('visit_primary', vid=v.id) }}{% endif %}"
+       class="ns-list-item">
+        <div>
+            <div class="ns-list-title">{{ v.patient.full_name }} · приём №{{ v.id }}</div>
+            <div class="ns-list-meta">{{ v.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+        </div>
+        <span class="ns-badge ns-badge-info">{{ v.status }}</span>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="alert alert-secondary">Визитов нет.</div>
+{% endif %}
+{% endblock %}

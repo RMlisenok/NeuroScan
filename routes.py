@@ -9,8 +9,8 @@ from werkzeug.security import check_password_hash
 from werkzeug.utils import secure_filename
 from flask_login import login_required, current_user, login_user, logout_user
 from app import app, db, log_action, _parse_date, _get_patient_or_404, _get_session_or_404, _get_image_or_404, \
-    ensure_model, _rel, _abs, _run_inference, _build_pdf
-from models_db import MRISession, MRIImage, User, Patient, AuditLog
+    ensure_model, _rel, _abs, _run_inference
+from models_db import MRISession, MRIImage, User, Patient, AuditLog, Visit, VisitStatus
 from auth_utils import admin_required, doctor_or_admin_required, doctor_required
 from qc import check_image
 from ml import CLASS_NAMES_RU
@@ -51,24 +51,6 @@ def upload_mri(session_id):
     flash('МРТ загружен')
     return redirect(url_for('view_mri', image_id=mri_image.id))
 
-
-# @app.route('/mri/<int:image_id>')
-# def view_mri(image_id):
-#     mri = MRIImage.query.get_or_404(image_id)
-#     filepath = os.path.join(app.config['UPLOAD_FOLDER'], mri.file_path)
-#
-#     if not os.path.exists(filepath):
-#         abort(404)
-#
-#     predicted_class, confidence = predict_mri(filepath)
-#
-#     return render_template(
-#         'mri_view.html',
-#         mri=mri,
-#         predicted_class=predicted_class,
-#         confidence=round(confidence * 100, 2)
-#     )
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -78,6 +60,8 @@ def login():
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
             log_action("login", "user", user.id)
+            if user.is_radiologist:
+                return redirect(url_for("visits_list"))
             return redirect(url_for("dashboard"))
         flash("Неверный логин или ключ доступа")
     return render_template("login.html")
@@ -89,17 +73,60 @@ def logout():
     log_action("logout", "user", current_user.id)
     logout_user()
     return redirect(url_for("login"))
+@app.route('/patient/<int:pid>/delete', methods=['POST'])
+@login_required
+def patient_delete(pid):
+    if not current_user.is_admin:
+        abort(403)
+    p = Patient.query.get_or_404(pid)
+    db.session.delete(p)
+    db.session.commit()
+    flash('Пациент удалён.', 'success')
+    return redirect(url_for('dashboard'))
 
+@app.route('/patients/all')
+@login_required
+def patients_all():
+    if current_user.is_admin:
+        patients = Patient.query.order_by(Patient.updated_at.desc()).all()
+    else:
+        patients = Patient.query.filter_by(doctor_id=current_user.id)\
+                                .order_by(Patient.updated_at.desc()).all()
+    return render_template('patients_all.html', patients=patients)
 
 @app.route("/")
 @login_required
 def dashboard():
+    if current_user.is_radiologist:
+        return redirect(url_for("visits_list"))
+
     q = request.args.get("q", "").strip()
-    query = Patient.query.filter_by(doctor_id=current_user.id)
+    if current_user.is_admin:
+        base = Patient.query
+    else:
+        base = Patient.query.filter(Patient.id.in_(
+            db.session.query(Visit.patient_id).filter(
+                Visit.status.in_([VisitStatus.OPEN, VisitStatus.AWAITING_MRI, VisitStatus.AWAITING_FOLLOWUP]),
+                Visit.doctor_id == current_user.id,
+            )
+        )
+    )
+
     if q:
-        query = query.filter(Patient.full_name.ilike(f"%{q}%"))
-    patients = query.order_by(Patient.updated_at.desc()).all()
-    return render_template("dashboard.html", patients=patients, q=q)
+        base = base.filter(Patient.full_name.ilike(f"%{q}%"))
+    patients = base.order_by(Patient.updated_at.desc()).all()
+
+    # Для вкладки «Вторичный приём»
+    if current_user.is_admin:
+        followups = Visit.query.filter_by(status=VisitStatus.AWAITING_FOLLOWUP) \
+            .order_by(Visit.created_at.desc()).all()
+    else:
+        followups = Visit.query.filter_by(
+            status=VisitStatus.AWAITING_FOLLOWUP,
+            doctor_id=current_user.id,
+        ).order_by(Visit.created_at.desc()).all()
+
+    return render_template("dashboard.html", patients=patients, q=q, followups=followups)
 
 @app.route("/admin/users")
 @login_required
@@ -189,30 +216,36 @@ def patient_new():
             full_name=request.form["full_name"].strip(),
             birth_date=_parse_date(request.form.get("birth_date")),
             gender=request.form.get("gender"),
-            phone=request.form.get("phone"),
-            email=request.form.get("email"),
-            address=request.form.get("address"),
             insurance_number=request.form.get("insurance_number"),
-            anamnesis=request.form.get("anamnesis"),
             complaints=request.form.get("complaints"),
             notes=request.form.get("notes"),
         )
         db.session.add(p)
         db.session.commit()
         log_action("patient_create", "patient", p.id)
-        flash("Пациент добавлен")
-        return redirect(url_for("patient_card", pid=p.id))
+
+        visit = Visit(
+            patient_id=p.id,
+            doctor_id=current_user.id,
+            visit_type='primary',
+            status=VisitStatus.OPEN,
+        )
+        db.session.add(visit)
+        db.session.commit()
+
+        flash("Пациент добавлен. Заполните первичный приём.")
+        return redirect(url_for("visit_primary", vid=visit.id))
+
     return render_template("patient_new.html")
 
 
-@app.route("/patient/<int:pid>")
+@app.route('/patient/<int:pid>')
 @login_required
 def patient_card(pid):
-    p = _get_patient_or_404(pid)
-    sessions = MRISession.query.filter_by(patient_id=p.id) \
-                              .order_by(MRISession.created_at.desc()).all()
-    return render_template("patient_card.html", patient=p, sessions=sessions)
-
+    patient = Patient.query.get_or_404(pid)
+    sessions = MRISession.query.filter_by(patient_id=patient.id).order_by(MRISession.created_at.desc()).all()
+    visits = Visit.query.filter_by(patient_id=patient.id).order_by(Visit.created_at.desc()).all()
+    return render_template('patient_card.html', patient=patient, sessions=sessions, visits=visits)
 
 @app.route("/patient/<int:pid>/edit", methods=["POST"])
 @login_required
@@ -221,11 +254,7 @@ def patient_edit(pid):
     p.full_name = request.form.get("full_name", p.full_name)
     p.birth_date = _parse_date(request.form.get("birth_date"))
     p.gender = request.form.get("gender")
-    p.phone = request.form.get("phone")
-    p.email = request.form.get("email")
-    p.address = request.form.get("address")
     p.insurance_number = request.form.get("insurance_number")
-    p.anamnesis = request.form.get("anamnesis")
     p.complaints = request.form.get("complaints")
     p.notes = request.form.get("notes")
     db.session.commit()
@@ -306,7 +335,11 @@ def mri_result(sid):
     images = MRIImage.query.filter_by(session_id=s.id).all()
     first_img = images[0] if images else None
     predicted = first_img.predicted_class if first_img else None
+
     symptom_result = analyze_complaints(s.patient.complaints or "", predicted_class=predicted)
+
+    return_to = request.args.get('return_to')
+    vid = request.args.get('vid', type=int)
 
     return render_template(
         "mri_result.html",
@@ -314,6 +347,8 @@ def mri_result(sid):
         patient=s.patient,
         images=images,
         symptom_result=symptom_result,
+        return_to=return_to,
+        vid=vid,
     )
 
 from flask import send_from_directory
@@ -379,7 +414,8 @@ def send_to_training(iid):
 @login_required
 def session_report(sid):
     s = _get_session_or_404(sid)
-    return _build_pdf(s)
+    from pdf_utils import build_session_pdf
+    return build_session_pdf(s)
 
 
 @app.route("/patient/<int:pid>/history")

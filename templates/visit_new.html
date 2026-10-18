@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">Новый приём</h1>
+        <div class="ns-page-sub">{{ patient.full_name }}</div>
+    </div>
+</div>
+
+<form method="post" class="ns-card p-4">
+    <p>Создать первичный приём для <b>{{ patient.full_name }}</b>?</p>
+    <div class="d-flex gap-2">
+        <button class="btn btn-brand">Создать</button>
+        <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">Отмена</a>
+    </div>
+</form>
+{% endblock %}

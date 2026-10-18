@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">Заключение рентгенолога</h1>
+        <div class="ns-page-sub">Визит №{{ visit.id }} · {{ visit.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+    </div>
+    <a href="{{ url_for('visits_list') }}" class="btn btn-ghost">← К списку</a>
+</div>
+
+{# ====== КАРТОЧКА ПАЦИЕНТА ====== #}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Пациент</div>
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="ns-hint">ФИО</div>
+            <div><b>{{ patient.full_name }}</b></div>
+        </div>
+        <div class="col-md-3">
+            <div class="ns-hint">Дата рождения</div>
+            <div>{{ patient.birth_date or '—' }}</div>
+        </div>
+        <div class="col-md-3">
+            <div class="ns-hint">Пол</div>
+            <div>{{ patient.gender or '—' }}</div>
+        </div>
+        <div class="col-md-6">
+            <div class="ns-hint">Полис</div>
+            <div>{{ patient.insurance_number or '—' }}</div>
+        </div>
+    </div>
+
+    {% set primary = visit.primary_report() %}
+    {% if primary %}
+        <div class="ns-section-title mt-3">Жалобы (из первичного приёма)</div>
+        <p class="mb-3">{{ primary.complaints or '—' }}</p>
+
+        <div class="ns-section-title">Предварительный диагноз</div>
+        <p class="mb-3"><b>{{ primary.preliminary_diagnosis or '—' }}</b></p>
+    {% endif %}
+</div>
+
+{# ====== ФОРМА 1: ЗАГРУЗКА СНИМКОВ ====== #}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Снимки МРТ</div>
+    <p class="ns-hint mb-2">Загрузите от 1 до {{ config.MAX_IMAGES_PER_SESSION }} снимков (PNG, JPG, BMP, TIFF).</p>
+
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('visit_radiology', vid=visit.id) }}">
+        <input type="hidden" name="action" value="upload">
+        <input type="file" name="files" multiple accept=".png,.jpg,.jpeg,.bmp,.tif,.tiff"
+               class="form-control mb-3" required>
+        <button class="btn btn-brand">Загрузить снимки</button>
+    </form>
+
+    {% if visit.mri_session and visit.mri_session.images %}
+        <div class="alert alert-secondary mt-3 mb-0 d-flex justify-content-between align-items-center">
+            <span>Уже загружено снимков: <b>{{ visit.mri_session.images|list|length }}</b>.</span>
+            <a href="{{ url_for('mri_result', sid=visit.mri_session.id, return_to='radiology', vid=visit.id) }}"
+               class="btn btn-brand btn-sm">Открыть результаты анализа</a>
+        </div>
+    {% endif %}
+</div>
+
+{# ====== ФОРМА 2: ЗАКЛЮЧЕНИЕ ====== #}
+<form method="post" class="ns-card p-4">
+    <input type="hidden" name="action" value="save_report">
+
+    <div class="ns-section-title">Область исследования</div>
+    <input name="area" class="form-control mb-4"
+           value="{{ report.area if report else 'Головной мозг' }}">
+
+    <div class="ns-section-title">Цель исследования</div>
+    <textarea name="purpose" rows="2" class="form-control mb-4">{{ report.purpose if report else '' }}</textarea>
+
+    <div class="ns-section-title">Описание</div>
+    <textarea name="description" rows="6" class="form-control mb-4"
+placeholder="Например: в лобной доле слева визуализируется образование ...">{{ report.description if report else '' }}</textarea>
+
+    <div class="ns-section-title">Заключение</div>
+    <textarea name="conclusion" rows="3" class="form-control mb-4">{{ report.conclusion if report else '' }}</textarea>
+
+    <p class="ns-hint">* Заключение не является диагнозом и должно быть интерпретировано врачом.</p>
+
+    <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-brand">Сохранить и подписать</button>
+        <a href="{{ url_for('visits_list') }}" class="btn btn-ghost">Отмена</a>
+    </div>
+</form>
+{% endblock %}

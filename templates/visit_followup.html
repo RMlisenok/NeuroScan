@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">Повторный приём невролога</h1>
+        <div class="ns-page-sub">{{ patient.full_name }}</div>
+    </div>
+</div>
+
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Заключение рентгенолога</div>
+    <p><b>Область:</b> {{ visit.radiologist_report.area }}</p>
+    <p><b>Описание:</b> {{ visit.radiologist_report.description }}</p>
+    <p><b>Заключение:</b> {{ visit.radiologist_report.conclusion }}</p>
+    <p class="ns-hint">Подписано: {{ visit.radiologist_report.signed_at.strftime('%d.%m.%Y %H:%M') }}</p>
+</div>
+
+{% if images %}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Снимки МРТ</div>
+    {% for img in images %}
+    <div class="mb-4 pb-3 border-bottom">
+        <div class="row g-3">
+            <div class="col-md-4 text-center">
+                <img src="/{{ img.original_path }}" class="img-fluid rounded" alt="Исходное">
+                <div class="ns-hint mt-1">Исходное</div>
+            </div>
+            <div class="col-md-4 text-center">
+                <img src="/{{ img.overlay_path }}" class="img-fluid rounded" alt="Grad-CAM">
+                <div class="ns-hint mt-1">Grad-CAM overlay</div>
+            </div>
+            <div class="col-md-4">
+                <h5 class="mb-2">{{ img.predicted_class|ru_class }}</h5>
+                <p class="mb-1">Уверенность: <b>{{ "%.1f"|format(img.confidence*100) }}%</b></p>
+                <h6 class="mt-3">Вероятности:</h6>
+                {% for name, p in (img.probabilities|from_json).items() %}
+                    <div class="small d-flex justify-content-between">
+                        <span>{{ name }}</span><span>{{ "%.1f"|format(p*100) }}%</span>
+                    </div>
+                    <div class="progress mb-2" style="height:5px;">
+                        <div class="progress-bar" style="width: {{ p*100 }}%"></div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="ns-card p-4">
+    <div class="ns-section-title">Диагноз</div>
+    <textarea name="diagnosis" rows="3" class="form-control mb-4">{{ report.diagnosis if report else '' }}</textarea>
+    <div class="ns-section-title">Назначенное лечение</div>
+    <textarea name="treatment" rows="5" class="form-control mb-4">{{ report.treatment if report else '' }}</textarea>
+
+    <div class="ns-section-title">Назначенные анализы</div>
+    <textarea name="prescribed_tests" rows="4" class="form-control mb-4">{{ report.prescribed_tests if report else '' }}</textarea>
+
+    <div class="ns-section-title">Заметки</div>
+    <textarea name="followup_notes" rows="3" class="form-control mb-4">{{ report.followup_notes if report else '' }}</textarea>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-brand">Завершить приём</button>
+        <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">Отмена</a>
+    </div>
+</form>
+{% endblock %}

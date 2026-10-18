@@ -1,107 +1,127 @@
-const state = {};
+const editors = {};
 
-function initEditor(canvas) {
-    const id = canvas.id.split("-")[1];
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-        const maskImg = new Image();
-        maskImg.crossOrigin = "anonymous";
-        maskImg.onload = () => {
-            ctx.globalAlpha = 0.45;
-            ctx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
-            ctx.globalAlpha = 1.0;
-            state[id] = { drawing: false, brush: 20, ctx, canvas };
+function getCtx(id) {
+    if (!editors[id]) {
+        const canvas = document.getElementById(`canvas-${id}`);
+        if (!canvas) return null;
+        const img = new Image();
+        img.src = canvas.dataset.image;
+        const ctx = canvas.getContext('2d');
+        const state = {
+            canvas, ctx, img, drawing: false, brush: 10, eraser: false,
+            lastX: 0, lastY: 0, loaded: false,
         };
-        maskImg.src = canvas.dataset.mask;
-    };
-    img.src = canvas.dataset.image;
-
-    canvas.addEventListener("mousedown", e => startDraw(id, e));
-    canvas.addEventListener("mousemove", e => draw(id, e));
-    window.addEventListener("mouseup", () => stopDraw(id));
+        img.onload = () => {
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            ctx.drawImage(img, 0, 0);
+            state.loaded = true;
+        };
+        canvas.addEventListener('mousedown', (e) => startDraw(e, id));
+        canvas.addEventListener('mousemove', (e) => moveDraw(e, id));
+        canvas.addEventListener('mouseup', () => stopDraw(id));
+        canvas.addEventListener('mouseleave', () => stopDraw(id));
+        editors[id] = state;
+    }
+    return editors[id];
 }
 
-function _pos(canvas, e) {
-    const r = canvas.getBoundingClientRect();
+function getPos(e, state) {
+    const r = state.canvas.getBoundingClientRect();
     return {
-        x: (e.clientX - r.left) * canvas.width / r.width,
-        y: (e.clientY - r.top) * canvas.height / r.height,
+        x: (e.clientX - r.left) * (state.canvas.width / r.width),
+        y: (e.clientY - r.top) * (state.canvas.height / r.height),
     };
 }
 
-function startDraw(id, e) {
-    const s = state[id]; if (!s) return;
+function startDraw(e, id) {
+    const s = getCtx(id);
+    if (!s || !s.loaded) return;
     s.drawing = true;
-    draw(id, e);
+    const { x, y } = getPos(e, s);
+    s.lastX = x; s.lastY = y;
+    drawDot(s, x, y);
 }
-function draw(id, e) {
-    const s = state[id]; if (!s || !s.drawing) return;
-    const p = _pos(s.canvas, e);
-    s.ctx.fillStyle = "rgba(255, 0, 0, 0.6)";
-    s.ctx.beginPath();
-    s.ctx.arc(p.x, p.y, s.brush, 0, Math.PI * 2);
-    s.ctx.fill();
+
+function moveDraw(e, id) {
+    const s = getCtx(id);
+    if (!s || !s.drawing) return;
+    const { x, y } = getPos(e, s);
+    drawLine(s, s.lastX, s.lastY, x, y);
+    s.lastX = x; s.lastY = y;
 }
+
 function stopDraw(id) {
-    const s = state[id]; if (s) s.drawing = false;
+    const s = getCtx(id);
+    if (s) s.drawing = false;
 }
+
+function drawDot(s, x, y) {
+    s.ctx.beginPath();
+    s.ctx.arc(x, y, s.brush / 2, 0, Math.PI * 2);
+    s.ctx.fillStyle = s.eraser ? 'rgba(0,0,0,1)' : 'rgba(255,0,0,0.5)';
+    s.ctx.globalCompositeOperation = s.eraser ? 'destination-out' : 'source-over';
+    s.ctx.fill();
+    s.ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawLine(s, x1, y1, x2, y2) {
+    s.ctx.beginPath();
+    s.ctx.lineCap = 'round';
+    s.ctx.lineJoin = 'round';
+    s.ctx.lineWidth = s.brush;
+    s.ctx.strokeStyle = s.eraser ? 'rgba(0,0,0,1)' : 'rgba(255,0,0,0.5)';
+    s.ctx.globalCompositeOperation = s.eraser ? 'destination-out' : 'source-over';
+    s.ctx.moveTo(x1, y1);
+    s.ctx.lineTo(x2, y2);
+    s.ctx.stroke();
+    s.ctx.globalCompositeOperation = 'source-over';
+}
+
 function setBrush(id, size) {
-    if (state[id]) state[id].brush = size;
+    const s = getCtx(id);
+    if (s) { s.brush = size; s.eraser = false; }
 }
+
+function setEraser(id) {
+    const s = getCtx(id);
+    if (s) { s.eraser = true; }
+}
+
 function clearCanvas(id) {
-    const s = state[id]; if (!s) return;
-    const img = new Image();
-    img.onload = () => s.ctx.drawImage(img, 0, 0);
-    img.src = s.canvas.dataset.image;
+    const s = getCtx(id);
+    if (!s) return;
+    s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    if (s.img && s.img.complete) s.ctx.drawImage(s.img, 0, 0);
 }
+
 function saveMask(id) {
-    const s = state[id]; if (!s) return;
-    const dataURL = s.canvas.toDataURL("image/png");
+    const s = getCtx(id);
+    if (!s) return;
+    const dataUrl = s.canvas.toDataURL('image/png');
     fetch(`/image/${id}/mask`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mask: dataURL })
-    }).then(r => r.json()).then(res => {
-        const el = document.getElementById(`status-${id}`);
-        el.textContent = res.ok ? "✅ Маска сохранена" : "❌ Ошибка: " + (res.error || "");
-        el.className = res.ok ? "small mt-2 text-success" : "small mt-2 text-danger";
-    });
-}
-
-function sendToTraining(imgId) {
-    const sel = document.getElementById(`verified-class-${imgId}`);
-    const status = document.getElementById(`training-status-${imgId}`);
-    if (!sel || !status) return;
-
-    status.textContent = "Отправка...";
-    status.className = "small mt-1 text-secondary";
-
-    fetch(`/image/${imgId}/send-to-training`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verified_class: sel.value }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mask: dataUrl }),
     })
     .then(r => r.json())
     .then(data => {
+        const el = document.getElementById(`status-${id}`);
         if (data.ok) {
-            status.textContent = "✅ " + (data.message || "Отправлено");
-            status.className = "small mt-1 text-success";
+            el.innerHTML = '<span class="badge bg-success">Маска сохранена</span>';
         } else {
-            status.textContent = "⚠ " + (data.error || "Ошибка");
-            status.className = "small mt-1 text-warning";
+            el.innerHTML = `<span class="badge bg-danger">${data.error || 'Ошибка'}</span>`;
         }
     })
-    .catch(err => {
-        status.textContent = "❌ " + err;
-        status.className = "small mt-1 text-danger";
+    .catch(() => {
+        document.getElementById(`status-${id}`).innerHTML =
+            '<span class="badge bg-danger">Ошибка сети</span>';
     });
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll(".mask-editor").forEach(initEditor);
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('canvas.mask-editor').forEach(c => {
+        const id = c.id.replace('canvas-', '');
+        getCtx(id);
+    });
 });

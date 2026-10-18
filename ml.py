@@ -4,6 +4,37 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
+import torch
+import torch.nn.functional as F
+
+# class EnsembleClassifier:
+#     def __init__(self, model_paths, build_model_fn, device='cpu'):
+#         self.device = device
+#         self.models = []
+#         self.classes = None
+#
+#         for path in model_paths:
+#             ckpt = torch.load(path, map_location=device)
+#             model = build_model_fn(num_classes=len(ckpt['classes']), pretrained=False)
+#             model.load_state_dict(ckpt['state_dict'])
+#             model.eval().to(device)
+#             self.models.append(model)
+#
+#             if self.classes is None:
+#                 self.classes = ckpt['classes']
+#             elif self.classes != ckpt['classes']:
+#                 raise ValueError(f"Классы не совпадают: {self.classes} vs {ckpt['classes']}")
+#
+#     @torch.no_grad()
+#     def predict_proba(self, x):
+#         """x — батч тензоров. Возвращает усреднённые вероятности."""
+#         probs = [F.softmax(m(x.to(self.device)), dim=1) for m in self.models]
+#         return torch.stack(probs).mean(dim=0)
+#
+#     @torch.no_grad()
+#     def predict(self, x):
+#         probs = self.predict_proba(x)
+#         return probs.argmax(dim=1), probs
 
 CLASS_NAMES_RU = {
     "glioma": "Глиома",

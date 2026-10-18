@@ -1,15 +1,22 @@
-"""
-Инициализация БД + создание первого админа.
-Запуск: python init_db.py
-"""
-
 import os
 import getpass
-from datetime import date
+from datetime import date, datetime
 
 from app import app
 from models_db import db, User, Patient, MRISession, MRIImage, AuditLog
 
+
+def get_or_create_user(username, full_name, role, password):
+    u = User.query.filter_by(username=username).first()
+    if u:
+        print(f"  ⏭  пользователь '{username}' уже есть")
+        return u
+    u = User(username=username, full_name=full_name, role=role)
+    u.set_password(password)
+    db.session.add(u)
+    db.session.commit()
+    print(f"  ✅ создан '{username}' / {password} ({role})")
+    return u
 
 def create_admin():
     print("\n=== Создание администратора ===")
@@ -38,37 +45,44 @@ def create_admin():
     db.session.commit()
     print(f"✅ Админ '{username}' создан.")
 
+def create_demo_doctors():
+    """Демо-невролог и демо-рентгенолог."""
+    print("\n=== Демо-врачи ===")
+    neurologist = get_or_create_user(
+        username="neurologist",
+        full_name="Иванов Иван Иванович",
+        role="neurologist",
+        password="neuro123",
+    )
+    radiologist = get_or_create_user(
+        username="radiologist",
+        full_name="Петрова Мария Сергеевна",
+        role="radiologist",
+        password="radio123",
+    )
+    return neurologist, radiologist
 
-def create_demo_doctor():
-    """Опционально — демо-врач для показа."""
-    if User.query.filter_by(username="doctor").first():
+def create_demo_patient(neurologist):
+    """Демо-пациент, привязанный к неврологу."""
+    if not neurologist:
+        print("  ⚠️  нет невролога — демо-пациент не создан")
         return
-    u = User(username="doctor", full_name="Иванов И.И.", role="doctor")
-    u.set_password("doctor123")
-    db.session.add(u)
-    db.session.commit()
-    print("✅ Демо-врач: doctor / doctor123")
 
-
-def create_demo_patient():
-    """Опционально — демо-пациент."""
-    doctor = User.query.filter_by(username="doctor").first()
-    if not doctor:
-        return
     if Patient.query.filter_by(full_name="Демо Пациент").first():
+        print("  ⏭  демо-пациент уже есть")
         return
+
     p = Patient(
-        doctor_id=doctor.id,
+        doctor_id=neurologist.id,
         full_name="Демо Пациент",
         birth_date=date(1985, 6, 15),
         gender="М",
-        phone="+7 900 000-00-00",
         complaints="Упорная головная боль, тошнота, эпизоды судорог.",
         anamnesis="Ранее без особенностей. Наследственность не отягощена.",
     )
     db.session.add(p)
     db.session.commit()
-    print("✅ Демо-пациент создан.")
+    print("  ✅ Демо-пациент создан (врач: neurologist)")
 
 
 def main():
@@ -86,15 +100,19 @@ def main():
         else:
             print(f"\nВ БД уже есть пользователи: {User.query.count()}")
 
-        if input("\nСоздать демо-данных? (y/n): ").strip().lower() == "y":
-            create_demo_doctor()
-            create_demo_patient()
+        if input("\nСоздать демо-данные? (y/n): ").strip().lower() == "y":
+            neurologist, radiologist = create_demo_doctors()
+            create_demo_patient(neurologist)
 
         print("\n=== Итог ===")
-        print(f"Пользователей: {User.query.count()}")
-        print(f"Пациентов:     {Patient.query.count()}")
-        print(f"Сессий МРТ:    {MRISession.query.count()}")
-        print(f"Снимков:       {MRIImage.query.count()}")
+        print(f"Пользователей:   {User.query.count()}")
+        print(f"  админов:       {User.query.filter_by(role='admin').count()}")
+        print(f"  неврологов:    {User.query.filter_by(role='neurologist').count()}")
+        print(f"  рентгенологов: {User.query.filter_by(role='radiologist').count()}")
+        print(f"  прочих:        {User.query.filter_by(role='doctor').count()}")
+        print(f"Пациентов:       {Patient.query.count()}")
+        print(f"Сессий МРТ:      {MRISession.query.count()}")
+        print(f"Снимков:         {MRIImage.query.count()}")
 
 
 if __name__ == "__main__":

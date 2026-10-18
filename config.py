@@ -21,5 +21,5 @@ class Config:
     UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB на сессию
     ALLOWED_EXT = {"png", "jpg", "jpeg", "bmp", "tif", "tiff"}
-    MODEL_PATH = os.path.join(BASE_DIR, "models", "classifier.pth")
+    MODEL_PATH = os.path.join(BASE_DIR, "models", "classifier_v2.pth")
     MAX_IMAGES_PER_SESSION = 5

@@ -1,30 +1,63 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="ns-page-head">
-    <div>
-        <h1 class="ns-page-title">Пациенты</h1>
-        <div class="ns-page-sub">Всего записей: {{ patients|list|length }}</div>
-    </div>
+    <h1 class="ns-page-title">Рабочий стол</h1>
     <a href="{{ url_for('patient_new') }}" class="btn btn-brand">+ Новый пациент</a>
 </div>
 
-<form class="mb-3" method="get">
-    <input name="q" value="{{ q }}" class="form-control" placeholder="Поиск по ФИО...">
-</form>
+<ul class="nav nav-tabs mb-3 ns-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-p-btn" data-bs-toggle="tab" data-bs-target="#tab-patients"
+                type="button" role="tab" aria-controls="tab-patients" aria-selected="true">
+            Пациенты <span class="badge bg-secondary">{{ patients|length }}</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-f-btn" data-bs-toggle="tab" data-bs-target="#tab-followups"
+                type="button" role="tab" aria-controls="tab-followups" aria-selected="false">
+            Вторичный приём <span class="badge bg-warning text-dark">{{ followups|length }}</span>
+        </button>
+    </li>
+</ul>
 
-{% if patients %}
-<div class="ns-list">
-    {% for p in patients %}
-    <a href="{{ url_for('patient_card', pid=p.id) }}" class="ns-list-item">
-        <div>
-            <div class="ns-list-title">{{ p.full_name }}</div>
-            <div class="ns-list-meta">{{ p.birth_date or '—' }} · {{ p.gender or '—' }}</div>
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-patients" role="tabpanel" aria-labelledby="tab-p-btn">
+        <form class="mb-3" method="get">
+            <input name="q" value="{{ q }}" class="form-control" placeholder="Поиск по ФИО...">
+        </form>
+        {% if patients %}
+        <div class="ns-list">
+            {% for p in patients %}
+            <a href="{{ url_for('patient_card', pid=p.id) }}" class="ns-list-item">
+                <div>
+                    <div class="ns-list-title">{{ p.full_name }}</div>
+                    <div class="ns-list-meta">{{ p.birth_date or '—' }} · {{ p.gender or '—' }}</div>
+                </div>
+                <div class="ns-list-side">Сессий: {{ p.sessions.count() }}</div>
+            </a>
+            {% endfor %}
         </div>
-        <div class="ns-list-side">Сессий: {{ p.sessions.count() }}</div>
-    </a>
-    {% endfor %}
+        {% else %}
+        <div class="alert alert-secondary">Пациентов пока нет.</div>
+        {% endif %}
+    </div>
+
+    <div class="tab-pane fade" id="tab-followups" role="tabpanel" aria-labelledby="tab-f-btn">
+        {% if followups %}
+        <div class="ns-list">
+            {% for v in followups %}
+            <a href="{{ url_for('visit_followup', vid=v.id) }}" class="ns-list-item">
+                <div>
+                    <div class="ns-list-title">{{ v.patient.full_name }}</div>
+                    <div class="ns-list-meta">Визит №{{ v.id }} · {{ v.created_at.strftime('%d.%m.%Y %H:%M') }}</div>
+                </div>
+                <span class="ns-badge ns-badge-info">ожидает повторного приёма</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-secondary">Визитов на вторичный приём нет.</div>
+        {% endif %}
+    </div>
 </div>
-{% else %}
-<div class="alert alert-secondary">Пациентов пока нет.</div>
-{% endif %}
 {% endblock %}

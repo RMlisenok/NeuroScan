@@ -83,7 +83,24 @@ code {
   transition: background .15s, color .15s;
 }
 .ns-nav-link:hover { background: var(--ns-brand-soft); color: var(--ns-brand-dark); }
-
+.ns-tabs {
+    border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.ns-tabs .nav-link {
+    color: var(--ns-muted, #94a3b8);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-weight: 500;
+}
+.ns-tabs .nav-link:hover {
+    color: #e2e8f0;
+}
+.ns-tabs .nav-link.active {
+    color: var(--ns-brand, #38bdf8);
+    background: transparent;
+    border-bottom-color: var(--ns-brand, #38bdf8);
+}
 .ns-user {
   display: flex;
   align-items: center;

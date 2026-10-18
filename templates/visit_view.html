@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="ns-page-head">
+    <div>
+        <h1 class="ns-page-title">Приём №{{ visit.id }}</h1>
+        <div class="ns-page-sub">
+            {{ patient.full_name }} · {{ visit.created_at.strftime('%d.%m.%Y %H:%M') }}
+            · <span class="ns-badge ns-badge-info">{{ visit.status }}</span>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {# --- Кнопки действий в зависимости от статуса и роли --- #}
+        {% if visit.status == 'open' and current_user.is_neurologist %}
+            <a href="{{ url_for('visit_primary', vid=visit.id) }}" class="btn btn-brand">Продолжить приём</a>
+        {% elif visit.status == 'awaiting_mri' and current_user.is_radiologist %}
+            <a href="{{ url_for('visit_radiology', vid=visit.id) }}" class="btn btn-brand">Заполнить заключение</a>
+        {% elif visit.status == 'awaiting_followup' and current_user.is_neurologist %}
+            <a href="{{ url_for('visit_followup', vid=visit.id) }}" class="btn btn-brand">Завершить приём</a>
+        {% endif %}
+
+        {# --- PDF и возврат назад --- #}
+        <a href="{{ url_for('visit_report', vid=visit.id) }}" class="btn btn-ghost">📄 PDF</a>
+        <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">← К пациенту</a>
+    </div>
+</div>
+
+{# ===== Первичный приём ===== #}
+{% if primary %}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Первичный приём невролога</div>
+    <p class="ns-hint">{{ primary.created_at.strftime('%d.%m.%Y %H:%M') }} · {{ primary.doctor.full_name }}</p>
+
+    <div class="ns-section-title mt-3">Жалобы</div>
+    <p>{{ primary.complaints or '—' }}</p>
+
+    <div class="ns-section-title">Анамнез заболевания</div>
+    <p>{{ primary.disease_anamnesis or '—' }}</p>
+
+    <div class="ns-section-title">Анамнез жизни</div>
+    <p>{{ primary.life_anamnesis or '—' }}</p>
+
+    <div class="ns-section-title">Объективный статус</div>
+    <p>{{ primary.objective_status or '—' }}</p>
+
+    <div class="ns-section-title">Предварительный диагноз</div>
+    <p><b>{{ primary.preliminary_diagnosis or '—' }}</b></p>
+
+    <div class="ns-section-title">План обследований</div>
+    <p class="mb-0">{{ primary.examination_plan or '—' }}</p>
+</div>
+{% endif %}
+
+{# ===== Заключение рентгенолога ===== #}
+{% if radiology %}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Заключение рентгенолога</div>
+    <p class="ns-hint">{{ radiology.signed_at.strftime('%d.%m.%Y %H:%M') if radiology.signed_at else '' }} · {{ radiology.radiologist.full_name }}</p>
+
+    <div class="ns-section-title mt-3">Область</div>
+    <p>{{ radiology.area or '—' }}</p>
+
+    <div class="ns-section-title">Описание</div>
+    <p>{{ radiology.description or '—' }}</p>
+
+    <div class="ns-section-title">Заключение</div>
+    <p class="mb-0"><b>{{ radiology.conclusion or '—' }}</b></p>
+</div>
+{% endif %}
+
+{# ===== Повторный приём ===== #}
+{% if followup %}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Повторный приём невролога</div>
+    <p class="ns-hint">{{ followup.created_at.strftime('%d.%m.%Y %H:%M') }} · {{ followup.doctor.full_name }}</p>
+
+    <div class="ns-section-title mt-3">Лечение</div>
+    <p>{{ followup.treatment or '—' }}</p>
+
+    <div class="ns-section-title">Анализы</div>
+    <p>{{ followup.prescribed_tests or '—' }}</p>
+
+    <div class="ns-section-title">Заметки</div>
+    <p class="mb-0">{{ followup.followup_notes or '—' }}</p>
+</div>
+{% endif %}
+{% endblock %}
