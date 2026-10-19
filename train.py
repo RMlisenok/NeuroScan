@@ -13,14 +13,14 @@ from torchvision import datasets, transforms
 from sklearn.metrics import (classification_report, confusion_matrix,
                              f1_score, accuracy_score)
 from sklearn.model_selection import train_test_split
-
+from ml import CLASS_NAMES_RU, build_model
 
 
 # ---------- Аргументы ----------
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--data", default="data", help="Корень с train/ и test/")
-    p.add_argument("--out", default="models/classifier.pth", help="Куда сохранить")
+    p.add_argument("--out", default="models/classifier_v2.pth", help="Куда сохранить")
     p.add_argument("--epochs", type=int, default=15)
     p.add_argument("--batch", type=int, default=32)
     p.add_argument("--lr", type=float, default=1e-4)
@@ -31,6 +31,8 @@ def parse_args():
     p.add_argument("--workers", type=int, default=2)
     p.add_argument("--patience", type=int, default=5, help="Early stopping")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    p.add_argument("--init", default=None,
+                   help="Путь к чекпоинту для дообучения (models/classifier_v2.pth)")
     return p.parse_args()
 
 
@@ -45,25 +47,6 @@ def set_seed(seed):
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
-
-# def build_transforms():
-#     train_tf = transforms.Compose([
-#         transforms.Resize((256, 256)),
-#         transforms.RandomResizedCrop(224, scale=(0.85, 1.0)),
-#         transforms.RandomHorizontalFlip(p=0.5),
-#         transforms.RandomRotation(degrees=12),
-#         transforms.ColorJitter(brightness=0.2, contrast=0.2),
-#         transforms.ToTensor(),
-#         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-#         transforms.RandomErasing(p=0.1, scale=(0.02, 0.08)),
-#     ])
-#
-#     eval_tf = transforms.Compose([
-#         transforms.Resize((224, 224)),
-#         transforms.ToTensor(),
-#         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
-#     ])
-#     return train_tf, eval_tf
 def build_transforms():
     train_tf = transforms.Compose([
         transforms.Resize((144, 144)),
@@ -84,11 +67,6 @@ def build_transforms():
 
 # ---------- Сплиты ----------
 def make_splits(data_dir, train_tf, eval_tf, val_split, seed):
-    """
-    Из data/train/ отрезаем валидацию (стратифицированно).
-    data/test/ — только для финального теста.
-    Возвращает train_ds, val_ds, test_ds, class_names.
-    """
     train_root = os.path.join(data_dir, "train")
     test_root = os.path.join(data_dir, "test")
 
@@ -211,7 +189,24 @@ def main():
     test_loader = DataLoader(test_ds, batch_size=args.batch, shuffle=False,
                              num_workers=args.workers, pin_memory=True)
 
-    model = build_model(num_classes=len(class_names), pretrained=True).to(device)
+    # model = build_model(num_classes=len(class_names), pretrained=True).to(device)
+    if args.init:
+        print(f"[INIT] загружаю веса из {args.init}")
+        ckpt = torch.load(args.init, map_location=device)
+        model = build_model(num_classes=len(class_names), pretrained=False)
+        model.load_state_dict(ckpt["state_dict"])
+        model = model.to(device)
+        old_classes = ckpt.get("classes")
+        print(f"[INIT] старые классы: {old_classes}")
+        if old_classes != class_names:
+            raise SystemExit(
+                f"Классы не совпадают!\n"
+                f"  чекпоинт: {old_classes}\n"
+                f"  датасет:  {class_names}"
+            )
+    else:
+        model = build_model(num_classes=len(class_names), pretrained=True).to(device)
+
 
     # Class weights — против дисбаланса (считаем только по train)
     train_targets = np.array([train_ds.dataset.samples[i][1] for i in train_ds.indices])

@@ -3,61 +3,157 @@
 <div class="ns-page-head">
     <div>
         <h1 class="ns-page-title">Повторный приём невролога</h1>
-        <div class="ns-page-sub">{{ patient.full_name }}</div>
+        <div class="ns-page-sub">
+            {{ patient.full_name }} · Визит №{{ visit.id }} · {{ visit.created_at.strftime('%d.%m.%Y %H:%M') }}
+        </div>
     </div>
+    <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">← К пациенту</a>
 </div>
 
+{# ========== ЗАКЛЮЧЕНИЕ РЕНТГЕНОЛОГА ========== #}
+{% if visit.radiologist_report %}
 <div class="ns-card p-4 mb-4">
     <div class="ns-section-title">Заключение рентгенолога</div>
-    <p><b>Область:</b> {{ visit.radiologist_report.area }}</p>
-    <p><b>Описание:</b> {{ visit.radiologist_report.description }}</p>
-    <p><b>Заключение:</b> {{ visit.radiologist_report.conclusion }}</p>
-    <p class="ns-hint">Подписано: {{ visit.radiologist_report.signed_at.strftime('%d.%m.%Y %H:%M') }}</p>
+    {% set rad = visit.radiologist_report %}
+    <p class="mb-1"><b>Область:</b> {{ rad.area or '—' }}</p>
+    <p class="mb-1"><b>Описание:</b> {{ rad.description or '—' }}</p>
+    <p class="mb-3"><b>Заключение:</b> {{ rad.conclusion or '—' }}</p>
+    <p class="ns-hint mb-0">
+        Подписано: {{ rad.signed_at.strftime('%d.%m.%Y %H:%M') if rad.signed_at else '—' }}
+        {% if rad.radiologist %} · {{ rad.radiologist.full_name }}{% endif %}
+    </p>
 </div>
+{% endif %}
 
+{# ========== АНАЛИЗ ЖАЛОБ (МОДЕЛЬ) ========== #}
+{% if symptom_result %}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">🧠 Анализ жалоб пациента</div>
+    {% if not symptom_result.has_text %}
+        <div class="alert alert-secondary mb-0">
+            {{ symptom_result.warning or "Жалобы не заполнены или слишком короткие для анализа." }}
+        </div>
+    {% else %}
+        {% if symptom_result.warning %}
+            <div class="alert alert-warning mb-3">⚠️ {{ symptom_result.warning }}</div>
+        {% else %}
+            <div class="alert alert-success mb-3">✅ Жалобы пациента согласуются с результатом модели.</div>
+        {% endif %}
+
+        {% if symptom_result.best_match %}
+        <p class="mb-2">
+            По тексту жалоб модель склоняется к классу:
+            <b>{{ symptom_result.best_match|ru_class }}</b>
+        </p>
+        {% endif %}
+
+        <div class="ns-table-wrap mb-0">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Класс</th>
+                        <th style="width: 70%;">Сходство с текстом жалоб</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cls, score in symptom_result.similarity.items() %}
+                    <tr {% if cls == symptom_result.best_match %}class="is-active"{% endif %}>
+                        <td>
+                            {{ cls|ru_class }}
+                            {% if cls == symptom_result.best_match %}
+                                <span class="ns-badge ns-badge-info ms-1">наибольшее</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress flex-grow-1" style="height:8px;">
+                                    <div class="progress-bar" style="width: {{ score * 100 }}%"></div>
+                                </div>
+                                <span class="ns-hint" style="min-width: 50px;">{{ "%.1f"|format(score * 100) }}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ========== СНИМКИ МРТ (МОДЕЛЬ) ========== #}
 {% if images %}
 <div class="ns-card p-4 mb-4">
-    <div class="ns-section-title">Снимки МРТ</div>
+    <div class="ns-section-title">🖼 Результаты анализа снимков МРТ</div>
+
     {% for img in images %}
     <div class="mb-4 pb-3 border-bottom">
-        <div class="row g-3">
-            <div class="col-md-4 text-center">
-                <img src="/{{ img.original_path }}" class="img-fluid rounded" alt="Исходное">
-                <div class="ns-hint mt-1">Исходное</div>
-            </div>
-            <div class="col-md-4 text-center">
-                <img src="/{{ img.overlay_path }}" class="img-fluid rounded" alt="Grad-CAM">
-                <div class="ns-hint mt-1">Grad-CAM overlay</div>
-            </div>
-            <div class="col-md-4">
-                <h5 class="mb-2">{{ img.predicted_class|ru_class }}</h5>
-                <p class="mb-1">Уверенность: <b>{{ "%.1f"|format(img.confidence*100) }}%</b></p>
-                <h6 class="mt-3">Вероятности:</h6>
-                {% for name, p in (img.probabilities|from_json).items() %}
-                    <div class="small d-flex justify-content-between">
-                        <span>{{ name }}</span><span>{{ "%.1f"|format(p*100) }}%</span>
-                    </div>
-                    <div class="progress mb-2" style="height:5px;">
-                        <div class="progress-bar" style="width: {{ p*100 }}%"></div>
-                    </div>
-                {% endfor %}
-            </div>
+        <div class="d-flex justify-content-between mb-2">
+            <b>Снимок: {{ img.filename }}</b>
+            {% if img.qc_ok %}
+                <span class="ns-badge ns-badge-ok">QC пройден</span>
+            {% else %}
+                <span class="ns-badge ns-badge-danger">QC отклонён</span>
+            {% endif %}
         </div>
+
+        {% if not img.qc_ok %}
+            <div class="alert alert-warning mb-0">
+                Снимок не прошёл контроль качества. Анализ модели недоступен.
+            </div>
+        {% else %}
+            <div class="row g-3">
+                <div class="col-md-4 text-center">
+                    <img src="/{{ img.original_path }}" class="img-fluid rounded" alt="Исходное">
+                    <div class="ns-hint mt-1">Исходное</div>
+                </div>
+                <div class="col-md-4 text-center">
+                    {% if img.overlay_path %}
+                        <img src="/{{ img.overlay_path }}" class="img-fluid rounded" alt="Grad-CAM">
+                        <div class="ns-hint mt-1">Grad-CAM</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-4">
+                    <h5 class="mb-2">{{ img.predicted_class|ru_class }}</h5>
+                    <p class="mb-1">Уверенность:
+                        <b>{{ "%.1f"|format((img.confidence or 0)*100) }}%</b>
+                    </p>
+                    {% if img.confidence is not none and img.confidence < 0.6 %}
+                        <div class="alert alert-warning py-1 small">Низкая уверенность — рекомендуется консилиум.</div>
+                    {% endif %}
+
+                    <h6 class="mt-3">Вероятности:</h6>
+                    {% for name, p in (img.probabilities|from_json).items() %}
+                        <div class="small d-flex justify-content-between">
+                            <span>{{ name }}</span><span>{{ "%.1f"|format(p*100) }}%</span>
+                        </div>
+                        <div class="progress mb-2" style="height:5px;">
+                            <div class="progress-bar" style="width: {{ p*100 }}%"></div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
     </div>
     {% endfor %}
 </div>
 {% endif %}
 
+{# ========== ФОРМА ПОВТОРНОГО ПРИЁМА ========== #}
 <form method="post" class="ns-card p-4">
     <div class="ns-section-title">Диагноз</div>
-    <textarea name="diagnosis" rows="3" class="form-control mb-4">{{ report.diagnosis if report else '' }}</textarea>
-    <div class="ns-section-title">Назначенное лечение</div>
-    <textarea name="treatment" rows="5" class="form-control mb-4">{{ report.treatment if report else '' }}</textarea>
+    <textarea name="diagnosis" rows="3" class="form-control mb-4"
+placeholder="Окончательный клинический диагноз">{{ report.diagnosis if report else '' }}</textarea>
 
-    <div class="ns-section-title">Назначенные анализы</div>
-    <textarea name="prescribed_tests" rows="4" class="form-control mb-4">{{ report.prescribed_tests if report else '' }}</textarea>
+    <div class="ns-section-title">План лечения</div>
+    <textarea name="treatment" rows="5" class="form-control mb-4"
+placeholder="Назначения, лекарства, дозировки, режим">{{ report.treatment if report else '' }}</textarea>
 
-    <div class="ns-section-title">Заметки</div>
+    <div class="ns-section-title">Анализы и обследования</div>
+    <textarea name="prescribed_tests" rows="4" class="form-control mb-4"
+placeholder="Какие анализы и обследования назначены">{{ report.prescribed_tests if report else '' }}</textarea>
+
+    <div class="ns-section-title">Заметки для врача (в отчёт не попадут)</div>
     <textarea name="followup_notes" rows="3" class="form-control mb-4">{{ report.followup_notes if report else '' }}</textarea>
 
     <div class="d-flex gap-2">

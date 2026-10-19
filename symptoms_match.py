@@ -71,7 +71,15 @@ def analyze_complaints(complaints: str, predicted_class: str | None = None) -> d
 
     best_match = max(combined, key=combined.get)
     result["best_match"] = best_match
+    scores = result.get("combined", result.get("similarity", {}))
+    if "notumor" in scores:
+        notumor_score = scores["notumor"]
+        best_score = max(scores.values()) if scores else 0
+        if best_score > 0 and notumor_score >= best_score * 0.9:
+            best_match = "notumor"
+            result["best_match"] = best_match
 
+    result["best_match"] = best_match
     if predicted_class:
         result["agreement"] = (best_match == predicted_class)
         if best_match == predicted_class:

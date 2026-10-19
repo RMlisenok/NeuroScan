@@ -20,7 +20,7 @@
 
         {# --- PDF и возврат назад --- #}
         <a href="{{ url_for('visit_report', vid=visit.id) }}" class="btn btn-ghost">📄 PDF</a>
-        <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">← К пациенту</a>
+        <a href="{{ url_for('visits_list', pid=patient.id) }}" class="btn btn-ghost">← Назад</a>
     </div>
 </div>
 
@@ -83,4 +83,35 @@
     <p class="mb-0">{{ followup.followup_notes or '—' }}</p>
 </div>
 {% endif %}
+{# ===== Снимки МРТ ===== #}
+{% if visit.mri_session and visit.mri_session.images.count() > 0 %}
+<div class="ns-card p-4 mb-4">
+    <div class="ns-section-title">Снимки МРТ</div>
+    <div class="row g-3">
+        {% for img in visit.mri_session.images %}
+            {% if img.qc_ok %}
+            <div class="col-md-6">
+                <div class="text-center">
+                    <img src="/{{ img.original_path }}" class="img-fluid rounded mb-2" alt="Исходное">
+                    <div class="ns-hint">Исходное</div>
+                </div>
+                {% if img.overlay_path %}
+                <div class="text-center mt-2">
+                    <img src="/{{ img.overlay_path }}" class="img-fluid rounded mb-2" alt="Grad-CAM">
+                    <div class="ns-hint">Grad-CAM</div>
+                </div>
+                {% endif %}
+                <p class="mt-2 mb-0">
+                    <b>Класс:</b> {{ img.predicted_class|ru_class }}<br>
+                    <b>Уверенность:</b> {{ "%.1f"|format((img.confidence or 0)*100) }}%
+                </p>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+<div class="mt-4">
+    <a href="{{ url_for('patient_card', pid=patient.id) }}" class="btn btn-ghost">← К пациенту</a>
+</div>
 {% endblock %}

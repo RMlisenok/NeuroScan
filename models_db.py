@@ -275,7 +275,7 @@ class Visit(db.Model):
     doctor = db.relationship('User', backref=db.backref('visits', lazy='dynamic'))
 
     mri_session_id = db.Column(db.Integer, db.ForeignKey('mri_sessions.id'), nullable=True)
-    mri_session = db.relationship('MRISession', backref='visit', uselist=False)
+    mri_session = db.relationship('MRISession',backref=db.backref('visit', uselist=False))
 
     neuro_reports = db.relationship(
         'NeurologistReport', backref='visit', lazy='dynamic',

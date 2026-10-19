@@ -28,10 +28,7 @@ pdfmetrics.registerFont(TTFont("DejaVu-Bold", f"{FONT_DIR}/DejaVuSans-Bold.ttf")
 @app.route('/visit/<int:vid>', strict_slashes=False)
 @login_required
 def visit_view(vid):
-    print(f"DEBUG visit_view: user={current_user.username}, role={current_user.role}, "
-          f"is_neuro={current_user.is_neurologist}, is_radio={current_user.is_radiologist}")
     visit = Visit.query.get_or_404(vid)
-    # любой врач может смотреть
     if not (current_user.is_neurologist or current_user.is_radiologist):
         abort(403)
     return render_template(
@@ -220,18 +217,24 @@ def visit_followup(vid):
         if report is None:
             report = NeurologistReport(visit_id=visit.id, doctor_id=current_user.id, kind='followup')
             db.session.add(report)
-
+        report.diagnosis = request.form.get('diagnosis', '').strip()
         report.treatment = request.form.get('treatment', '').strip()
         report.prescribed_tests = request.form.get('prescribed_tests', '').strip()
         report.followup_notes = request.form.get('followup_notes', '').strip()
-        report.diagnosis = request.form.get('diagnosis', '').strip()
 
         visit.status = VisitStatus.CLOSED
         visit.closed_at = datetime.utcnow()
         db.session.commit()
         flash('Приём завершён.', 'success')
         return redirect(url_for('patient_card', pid=visit.patient_id))
-
+    symptom_result = None
+    if visit.patient.complaints:
+        from symptoms_match import analyze_complaints
+        predicted = None
+        if visit.mri_session and visit.mri_session.images.count() > 0:
+            first_img = visit.mri_session.images.first()
+            predicted = first_img.predicted_class if first_img else None
+        symptom_result = analyze_complaints(visit.patient.complaints, predicted_class=predicted)
     return render_template(
         'visit_followup.html',
         visit=visit,

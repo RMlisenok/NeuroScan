@@ -65,7 +65,7 @@ def _draw_header(c, W, H, title):
     return H - 125
 
 
-def _draw_fields(c, y, fields, label_x=40, value_x=230, W=None, H=None):
+def _draw_fields(c, y, fields, label_x=40, value_x=240, W=None, H=None):
     c.setFont("DejaVu", 10)
     for label, value in fields:
         c.setFont("DejaVu-Bold", 10)
@@ -74,11 +74,9 @@ def _draw_fields(c, y, fields, label_x=40, value_x=230, W=None, H=None):
         text = str(value or "—")
 
         if len(text) <= 55:
-            # короткое — в одну строку рядом с меткой
             c.drawString(value_x, y, text)
             y -= 16
         else:
-            # длинное — с новой строки под меткой
             y -= 14
             for line in _wrap(text, 90):
                 if H and y < 80:
@@ -145,7 +143,39 @@ def build_radiology_pdf(visit):
     y = _draw_block(c, y, "Цель исследования:", rad.purpose if rad else "—", W, H)
     y = _draw_block(c, y, "Описание:", rad.description if rad else "—", W, H)
     y = _draw_block(c, y, "Заключение:", rad.conclusion if rad else "—", W, H)
+    if visit.mri_session:
+        images_list = list(visit.mri_session.images)
+        if images_list:
+            y -= 10
+            if y < 200:
+                c.showPage()
+                y = _draw_header(c, W, H, "Заключение рентгенолога")
+            c.setFont("DejaVu-Bold", 11)
+            c.drawString(40, y, "Снимки МРТ:")
+            y -= 14
 
+            for img in images_list:
+                if y < 200:
+                    c.showPage()
+                    y = _draw_header(c, W, H, "Заключение рентгенолога")
+                c.setFont("DejaVu", 9)
+                c.drawString(40, y, f"Снимок #{img.id}: {img.filename}")
+                y -= 12
+                try:
+                    orig = _abs(img.original_path)
+                    c.drawImage(ImageReader(orig), 40, y - 160,
+                                width=200, height=160, preserveAspectRatio=True)
+                    c.setFont("DejaVu", 8)
+                    c.drawString(40, y - 172, "Оригинал")
+                    if img.overlay_path:
+                        ov = _abs(img.overlay_path)
+                        c.drawImage(ImageReader(ov), 260, y - 160,
+                                    width=200, height=160, preserveAspectRatio=True)
+                        c.drawString(260, y - 172, "Grad-CAM")
+                    y -= 190
+                except Exception as e:
+                    print(f"PDF radiology image error: {e}")
+                    y -= 20
     c.setFont("DejaVu-Oblique", 9)
     for line in _wrap("* Заключение не является диагнозом и должно быть интерпретировано врачом.", 100):
         c.drawString(40, y, line)
@@ -221,12 +251,11 @@ def build_followup_pdf(visit):
         radiology_text = (
             f"Область: {rad.area or '—'}\n"
             f"Описание: {rad.description or '—'}\n"
-            f"Заключение: {rad.conclusion or '—'}"
         )
         y = _draw_block(c, y, "Заключение рентгенолога:", radiology_text, W, H)
 
     # Диагноз — без «предположительный»
-    y = _draw_block(c, y, "Диагноз:", rep.preliminary_diagnosis if rep else "—", W, H)
+    y = _draw_block(c, y, "Диагноз:", rep.diagnosis if rep and rep.diagnosis else "—", W, H)
 
     # План лечения — объединяем treatment + prescribed_tests
     plan_parts = []
@@ -237,8 +266,39 @@ def build_followup_pdf(visit):
             plan_parts.append("Анализы: " + rep.prescribed_tests.strip())
     plan_text = "\n".join(plan_parts) or "—"
     y = _draw_block(c, y, "План лечения:", plan_text, W, H)
+    if visit.mri_session:
+        images_list = list(visit.mri_session.images)
+        if images_list:
+            y -= 10
+            if y < 200:
+                c.showPage()
+                y = _draw_header(c, W, H, "Запись врача невролога. Повторный приём")
+            c.setFont("DejaVu-Bold", 11)
+            c.drawString(40, y, "Снимки МРТ:")
+            y -= 14
 
-    # Заметки врача — НЕ выводим (только для врача)
+            for img in images_list:
+                if y < 200:
+                    c.showPage()
+                    y = _draw_header(c, W, H, "Запись врача невролога. Повторный приём")
+                c.setFont("DejaVu", 9)
+                c.drawString(40, y, f"Снимок #{img.id}: {img.filename}")
+                y -= 12
+                try:
+                    orig = _abs(img.original_path)
+                    c.drawImage(ImageReader(orig), 40, y - 160,
+                                width=200, height=160, preserveAspectRatio=True)
+                    c.setFont("DejaVu", 8)
+                    c.drawString(40, y - 172, "Оригинал")
+                    if img.overlay_path:
+                        ov = _abs(img.overlay_path)
+                        c.drawImage(ImageReader(ov), 260, y - 160,
+                                    width=200, height=160, preserveAspectRatio=True)
+                        c.drawString(260, y - 172, "Grad-CAM")
+                    y -= 190
+                except Exception as e:
+                    print(f"PDF followup image error: {e}")
+                    y -= 20
 
     c.setFont("DejaVu", 10)
     c.drawString(40, y, "Подпись врача: ______________________")
@@ -282,7 +342,8 @@ def build_session_pdf(session):
     c.drawString(40, y, "Результаты анализа снимков:")
     y -= 20
 
-    for i, img in enumerate(session.images, 1):
+    images_list = list(session.images) if hasattr(session.images, '__iter__') else []
+    for i, img in enumerate(images_list, 1):
         if y < 300:
             c.showPage()
             y = _draw_header(c, W, H, "")
@@ -323,9 +384,10 @@ def build_session_pdf(session):
                 ov = _abs(img.overlay_path)
                 c.drawImage(ImageReader(ov), 290, y - 160,
                             width=220, height=160, preserveAspectRatio=True)
-                c.drawString(290, y - 172, "Grad-CAM (область внимания модели)")
+                c.drawString(290, y - 172, "Grad-CAM")
             y -= 190
-        except Exception:
+        except Exception as e:
+            print(f"PDF image error: {e}")
             y -= 20
 
     # Сопоставление жалоб и модели
